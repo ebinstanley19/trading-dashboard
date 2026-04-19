@@ -347,16 +347,28 @@ def analyze(symbol: str, df: pd.DataFrame, asset_type: str, timeframe: str = "15
 
     # Wider stops on longer timeframes — swing trades need room to breathe
     sl_mult = {"15m": 2.0, "30m": 2.5, "1h": 3.0}.get(timeframe, 2.0)
-    tp_mult = sl_mult * 2  # always 1:2 R:R
+    tp_mult = sl_mult * 2  # 1:2 R:R baseline
+
+    # Minimum % floors so week+ swing targets are actually meaningful
+    # ATR on short candles is tiny — these ensure the levels are worth holding for
+    _sl_floor, _tp_floor = {
+        "stock":  (0.03, 0.08),
+        "crypto": (0.05, 0.12),
+        "forex":  (0.01, 0.025),
+    }.get(asset_type, (0.03, 0.08))
 
     if direction == "BUY":
-        stop_loss = round(price - atr * sl_mult, 5)
-        take_profit = round(price + atr * tp_mult, 5)
+        sl_atr = price - atr * sl_mult
+        tp_atr = price + atr * tp_mult
+        stop_loss  = round(min(sl_atr, price * (1 - _sl_floor)), 5)  # wider of the two
+        take_profit = round(max(tp_atr, price * (1 + _tp_floor)), 5)  # higher of the two
     elif direction == "SELL":
-        stop_loss = round(price + atr * sl_mult, 5)
-        take_profit = round(price - atr * tp_mult, 5)
+        sl_atr = price + atr * sl_mult
+        tp_atr = price - atr * tp_mult
+        stop_loss  = round(max(sl_atr, price * (1 + _sl_floor)), 5)
+        take_profit = round(min(tp_atr, price * (1 - _tp_floor)), 5)
     else:
-        stop_loss = round(price - atr * 1.5, 5)
+        stop_loss  = round(price - atr * 1.5, 5)
         take_profit = round(price + atr * 1.5, 5)
 
     return Signal(
