@@ -627,7 +627,6 @@ function SearchModal({ onResult, onClose }) {
             autoComplete="off"
           />
           {query && <button onClick={() => setQuery("")} className="text-gray-500 hover:text-white transition-colors"><X size={16} /></button>}
-          <kbd className="hidden sm:block text-xs text-gray-600 bg-dark-700 border border-dark-600 rounded px-1.5 py-0.5 font-mono">Esc</kbd>
         </div>
 
         {suggestions.length > 0 && (
@@ -737,13 +736,6 @@ export default function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
 
-  useEffect(() => {
-    const handler = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") { e.preventDefault(); setShowSearch(true); }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
   const [timeframe, setTimeframe] = useState("15m");
   const [assetFilter, setAssetFilter] = useState("all");
   const [dirFilter, setDirFilter] = useState("all");
@@ -862,7 +854,6 @@ export default function App() {
             >
               <Search size={14} className="group-hover:text-blue-400 transition-colors" />
               <span className="hidden sm:inline">Search...</span>
-              <kbd className="hidden md:inline-flex items-center gap-1 text-xs text-gray-600 bg-dark-600 border border-dark-500 rounded px-1.5 py-0.5 font-mono">⌘K</kbd>
             </button>
             <div className={`flex items-center gap-1.5 text-xs ${wsStatus === "connected" ? "text-buy" : "text-gray-500"}`}>
               {wsStatus === "connected" ? <Wifi size={14} /> : <WifiOff size={14} />}
