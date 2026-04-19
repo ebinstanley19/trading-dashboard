@@ -1,12 +1,13 @@
 import asyncio
 import os
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from .scanner import run_scan, get_cached_signals
+from .scanner import run_scan, get_cached_signals, scan_watchlist_symbols, _scan_asset
 from .data_feeds import fetch_stock_price, fetch_crypto_price, fetch_forex_price
 
 load_dotenv()
@@ -97,6 +98,19 @@ async def get_price(asset_type: str, symbol: str):
     else:
         price = await fetch_forex_price(symbol)
     return {"symbol": symbol, "price": price}
+
+
+@app.post("/api/scan/symbol")
+async def scan_single(symbol: str, asset_type: str, timeframe: str = "15m"):
+    from dataclasses import asdict
+    signal = await _scan_asset(symbol.upper(), asset_type, timeframe)
+    return {"signal": asdict(signal) if signal else None}
+
+
+@app.post("/api/scan/watchlist")
+async def scan_watchlist_endpoint(body: dict):
+    signals = await scan_watchlist_symbols(body.get("symbols", []), body.get("timeframe", "15m"))
+    return {"signals": signals, "scan_time": datetime.now(timezone.utc).isoformat()}
 
 
 @app.websocket("/ws")

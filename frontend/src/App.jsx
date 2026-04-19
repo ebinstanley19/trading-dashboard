@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { RefreshCw, TrendingUp, TrendingDown, Minus, Wifi, WifiOff, AlertCircle, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
+import { RefreshCw, TrendingUp, TrendingDown, Minus, Wifi, WifiOff, AlertCircle, ChevronUp, ChevronDown, ChevronsUpDown, Search, Star, StarOff, X, Plus } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "";
 const WS_BASE = API_BASE.replace(/^https/, "wss").replace(/^http/, "ws");
@@ -7,6 +7,7 @@ const SCAN_INTERVAL_SEC = 300;
 
 const TIMEFRAMES = ["15m", "30m", "1h"];
 const ASSET_FILTERS = ["all", "stock", "crypto", "forex"];
+const ASSET_TYPES = ["stock", "crypto", "forex"];
 const DIRECTION_FILTERS = ["all", "BUY", "SELL", "WAIT"];
 
 const TF_TV = { "15m": "15", "30m": "30", "1h": "60" };
@@ -132,8 +133,61 @@ function SignalRow({ signal, onClick, selected }) {
   );
 }
 
-function SignalDetail({ signal, onClose }) {
+function SignalTable({ signals, loading, emptyMsg, onRowClick, selectedSignal, sortCol, sortDir, onSort }) {
+  const sorted = [...signals].sort((a, b) => {
+    let av = sortCol === "_rr" ? computeRR(a) : a[sortCol];
+    let bv = sortCol === "_rr" ? computeRR(b) : b[sortCol];
+    if (typeof av === "string") av = av.toLowerCase();
+    if (typeof bv === "string") bv = bv.toLowerCase();
+    if (av < bv) return sortDir === "asc" ? -1 : 1;
+    if (av > bv) return sortDir === "asc" ? 1 : -1;
+    return 0;
+  });
+  return (
+    <div className="bg-dark-800 border border-dark-600 rounded-xl overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-dark-600 bg-dark-700">
+              {COLUMNS.map(col => (
+                <th
+                  key={col.key}
+                  onClick={() => onSort(col.key)}
+                  className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-white transition-colors"
+                >
+                  {col.label}
+                  <SortIcon col={col.key} sortCol={sortCol} sortDir={sortDir} />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.length === 0 ? (
+              <tr>
+                <td colSpan={9} className="px-4 py-12 text-center text-gray-500">
+                  {loading ? "Scanning markets..." : emptyMsg}
+                </td>
+              </tr>
+            ) : (
+              sorted.map((s, i) => (
+                <SignalRow
+                  key={`${s.symbol}-${i}`}
+                  signal={s}
+                  onClick={onRowClick}
+                  selected={selectedSignal?.symbol === s.symbol}
+                />
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function SignalDetail({ signal, onClose, watchlist, onToggleWatchlist }) {
   if (!signal) return null;
+  const inWatchlist = watchlist.some(w => w.symbol === signal.symbol && w.assetType === signal.asset_type);
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto" onClick={onClose}>
       <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-3xl w-full mx-auto my-auto" onClick={e => e.stopPropagation()}>
@@ -143,7 +197,16 @@ function SignalDetail({ signal, onClose }) {
             <h2 className="text-xl font-bold text-white">{signal.symbol}</h2>
             <span className="text-sm text-gray-400 capitalize">{signal.asset_type} · {signal.timeframe}</span>
           </div>
-          <DirectionBadge direction={signal.direction} />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onToggleWatchlist(signal)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${inWatchlist ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 hover:bg-yellow-500/30" : "bg-dark-600 text-gray-400 hover:text-white border border-dark-500"}`}
+            >
+              {inWatchlist ? <StarOff size={12} /> : <Star size={12} />}
+              {inWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
+            </button>
+            <DirectionBadge direction={signal.direction} />
+          </div>
         </div>
         <div className="grid grid-cols-3 gap-3 mb-4">
           {[
@@ -192,7 +255,208 @@ function SignalDetail({ signal, onClose }) {
   );
 }
 
+function WatchlistPage({ watchlist, setWatchlist, sortCol, sortDir, onSort, selectedSignal, setSelectedSignal }) {
+  const [addSymbol, setAddSymbol] = useState("");
+  const [addAssetType, setAddAssetType] = useState("stock");
+  const [addTimeframe, setAddTimeframe] = useState("15m");
+  const [signals, setSignals] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [scanTime, setScanTime] = useState("");
+
+  const addToWatchlist = () => {
+    const sym = addSymbol.trim().toUpperCase();
+    if (!sym) return;
+    if (watchlist.some(w => w.symbol === sym && w.assetType === addAssetType)) return;
+    setWatchlist(prev => [...prev, { symbol: sym, assetType: addAssetType, timeframe: addTimeframe }]);
+    setAddSymbol("");
+  };
+
+  const removeFromWatchlist = (symbol, assetType) => {
+    setWatchlist(prev => prev.filter(w => !(w.symbol === symbol && w.assetType === assetType)));
+    setSignals(prev => prev.filter(s => !(s.symbol === symbol && s.asset_type === assetType)));
+  };
+
+  const scanWatchlist = useCallback(async () => {
+    if (watchlist.length === 0) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/scan/watchlist`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          symbols: watchlist.map(w => ({ symbol: w.symbol, asset_type: w.assetType })),
+          timeframe: addTimeframe,
+        }),
+      });
+      const data = await res.json();
+      setSignals(data.signals || []);
+      setScanTime(data.scan_time || "");
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, [watchlist, addTimeframe]);
+
+  return (
+    <div className="max-w-7xl mx-auto px-6 py-6">
+      {/* Add symbol form */}
+      <div className="bg-dark-800 border border-dark-600 rounded-xl p-4 mb-6">
+        <h2 className="text-sm font-semibold text-gray-300 mb-3">Add Symbol to Watchlist</h2>
+        <div className="flex gap-2 flex-wrap">
+          <input
+            value={addSymbol}
+            onChange={e => setAddSymbol(e.target.value.toUpperCase())}
+            onKeyDown={e => e.key === "Enter" && addToWatchlist()}
+            placeholder="e.g. NVDA, BTCUSDT, EURUSD"
+            className="flex-1 min-w-48 bg-dark-700 border border-dark-500 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+          />
+          <select
+            value={addAssetType}
+            onChange={e => setAddAssetType(e.target.value)}
+            className="bg-dark-700 border border-dark-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+          >
+            {ASSET_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <button
+            onClick={addToWatchlist}
+            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors"
+          >
+            <Plus size={14} /> Add
+          </button>
+        </div>
+
+        {/* Watchlist chips */}
+        {watchlist.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-3">
+            {watchlist.map(w => (
+              <span key={`${w.symbol}-${w.assetType}`} className="flex items-center gap-1.5 px-2.5 py-1 bg-dark-600 border border-dark-500 rounded-full text-xs text-gray-300">
+                <span className="font-semibold text-white">{w.symbol}</span>
+                <span className="text-gray-500 capitalize">{w.assetType}</span>
+                <button onClick={() => removeFromWatchlist(w.symbol, w.assetType)} className="text-gray-500 hover:text-red-400 transition-colors ml-0.5">
+                  <X size={11} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Scan controls */}
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <div className="flex gap-1 bg-dark-800 border border-dark-600 rounded-lg p-1">
+          {TIMEFRAMES.map(tf => (
+            <button
+              key={tf}
+              onClick={() => setAddTimeframe(tf)}
+              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${addTimeframe === tf ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"}`}
+            >
+              {tf}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-3">
+          {scanTime && <span className="text-xs text-gray-500">Scanned: {new Date(scanTime).toLocaleTimeString()}</span>}
+          <button
+            onClick={scanWatchlist}
+            disabled={loading || watchlist.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            {loading ? "Scanning..." : "Scan Watchlist"}
+          </button>
+        </div>
+      </div>
+
+      {watchlist.length === 0 ? (
+        <div className="bg-dark-800 border border-dark-600 rounded-xl py-16 text-center text-gray-500">
+          <Star size={32} className="mx-auto mb-3 opacity-30" />
+          <p>Your watchlist is empty — add symbols above</p>
+        </div>
+      ) : (
+        <SignalTable
+          signals={signals}
+          loading={loading}
+          emptyMsg="Click Scan Watchlist to get signals"
+          onRowClick={setSelectedSignal}
+          selectedSignal={selectedSignal}
+          sortCol={sortCol}
+          sortDir={sortDir}
+          onSort={onSort}
+        />
+      )}
+    </div>
+  );
+}
+
+function SearchBar({ onResult }) {
+  const [symbol, setSymbol] = useState("");
+  const [assetType, setAssetType] = useState("stock");
+  const [timeframe, setTimeframe] = useState("15m");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const search = async () => {
+    const sym = symbol.trim().toUpperCase();
+    if (!sym) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`${API_BASE}/api/scan/symbol?symbol=${sym}&asset_type=${assetType}&timeframe=${timeframe}`, { method: "POST" });
+      const data = await res.json();
+      if (data.signal) {
+        onResult(data.signal);
+        setSymbol("");
+      } else {
+        setError("No data found for this symbol");
+      }
+    } catch (e) {
+      setError("Search failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex items-center bg-dark-700 border border-dark-500 rounded-lg overflow-hidden focus-within:border-blue-500 transition-colors">
+        <Search size={14} className="ml-3 text-gray-500 flex-shrink-0" />
+        <input
+          value={symbol}
+          onChange={e => { setSymbol(e.target.value.toUpperCase()); setError(""); }}
+          onKeyDown={e => e.key === "Enter" && search()}
+          placeholder="Symbol..."
+          className="bg-transparent px-2 py-2 text-sm text-white placeholder-gray-500 focus:outline-none w-32"
+        />
+        <select
+          value={assetType}
+          onChange={e => setAssetType(e.target.value)}
+          className="bg-dark-600 border-l border-dark-500 px-2 py-2 text-xs text-gray-300 focus:outline-none"
+        >
+          {ASSET_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <select
+          value={timeframe}
+          onChange={e => setTimeframe(e.target.value)}
+          className="bg-dark-600 border-l border-dark-500 px-2 py-2 text-xs text-gray-300 focus:outline-none"
+        >
+          {TIMEFRAMES.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+      </div>
+      <button
+        onClick={search}
+        disabled={loading || !symbol.trim()}
+        className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+      >
+        {loading ? <RefreshCw size={14} className="animate-spin" /> : <Search size={14} />}
+      </button>
+      {error && <span className="text-xs text-red-400">{error}</span>}
+    </div>
+  );
+}
+
 export default function App() {
+  const [activeTab, setActiveTab] = useState("scanner");
   const [signals, setSignals] = useState([]);
   const [lastScan, setLastScan] = useState("");
   const [loading, setLoading] = useState(false);
@@ -203,9 +467,16 @@ export default function App() {
   const [dirFilter, setDirFilter] = useState("all");
   const [sortCol, setSortCol] = useState("score");
   const [sortDir, setSortDir] = useState("desc");
+  const [watchlist, setWatchlist] = useState(() =>
+    JSON.parse(localStorage.getItem("trading_watchlist") || "[]")
+  );
   const wsRef = useRef(null);
   const timeframeRef = useRef(timeframe);
   const countdown = useCountdown(lastScan);
+
+  useEffect(() => {
+    localStorage.setItem("trading_watchlist", JSON.stringify(watchlist));
+  }, [watchlist]);
 
   useEffect(() => {
     timeframeRef.current = timeframe;
@@ -267,30 +538,26 @@ export default function App() {
 
   const handleSort = (col) => {
     setSortCol(prev => {
-      if (prev === col) {
-        setSortDir(d => d === "asc" ? "desc" : "asc");
-        return col;
-      }
+      if (prev === col) { setSortDir(d => d === "asc" ? "desc" : "asc"); return col; }
       setSortDir("desc");
       return col;
     });
   };
 
-  const sorted = [...signals]
-    .filter(s => {
-      if (assetFilter !== "all" && s.asset_type !== assetFilter) return false;
-      if (dirFilter !== "all" && s.direction !== dirFilter) return false;
-      return true;
-    })
-    .sort((a, b) => {
-      let av = sortCol === "_rr" ? computeRR(a) : a[sortCol];
-      let bv = sortCol === "_rr" ? computeRR(b) : b[sortCol];
-      if (typeof av === "string") av = av.toLowerCase();
-      if (typeof bv === "string") bv = bv.toLowerCase();
-      if (av < bv) return sortDir === "asc" ? -1 : 1;
-      if (av > bv) return sortDir === "asc" ? 1 : -1;
-      return 0;
-    });
+  const toggleWatchlist = (signal) => {
+    const exists = watchlist.some(w => w.symbol === signal.symbol && w.assetType === signal.asset_type);
+    if (exists) {
+      setWatchlist(prev => prev.filter(w => !(w.symbol === signal.symbol && w.assetType === signal.asset_type)));
+    } else {
+      setWatchlist(prev => [...prev, { symbol: signal.symbol, assetType: signal.asset_type, timeframe: signal.timeframe }]);
+    }
+  };
+
+  const filtered = signals.filter(s => {
+    if (assetFilter !== "all" && s.asset_type !== assetFilter) return false;
+    if (dirFilter !== "all" && s.direction !== dirFilter) return false;
+    return true;
+  });
 
   const buyCount = signals.filter(s => s.direction === "BUY").length;
   const sellCount = signals.filter(s => s.direction === "SELL").length;
@@ -299,12 +566,13 @@ export default function App() {
     <div className="min-h-screen bg-dark-900 text-gray-200">
       {/* Header */}
       <header className="bg-dark-800 border-b border-dark-600 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-xl font-bold text-white">📈 Trading Signal Scanner</h1>
             <p className="text-xs text-gray-500 mt-0.5">US Stocks · Crypto · Forex/CFDs</p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <SearchBar onResult={setSelectedSignal} />
             <div className={`flex items-center gap-1.5 text-xs ${wsStatus === "connected" ? "text-buy" : "text-gray-500"}`}>
               {wsStatus === "connected" ? <Wifi size={14} /> : <WifiOff size={14} />}
               {wsStatus === "connected" ? "Live" : "Reconnecting..."}
@@ -331,105 +599,102 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-6">
-        {/* Stats bar */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
+      {/* Tab bar */}
+      <div className="bg-dark-800 border-b border-dark-600 px-6">
+        <div className="max-w-7xl mx-auto flex gap-0">
           {[
-            { label: "Total Signals", value: signals.length, color: "text-white" },
-            { label: "BUY Setups", value: buyCount, color: "text-buy" },
-            { label: "SELL Setups", value: sellCount, color: "text-sell" },
-            { label: "Avg Score", value: signals.length ? (signals.reduce((a, b) => a + b.score, 0) / signals.length).toFixed(0) + "/100" : "-", color: "text-blue-400" },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="bg-dark-800 border border-dark-600 rounded-xl p-4">
-              <div className="text-xs text-gray-500 mb-1">{label}</div>
-              <div className={`text-2xl font-bold ${color}`}>{value}</div>
-            </div>
+            { id: "scanner", label: "Live Scanner" },
+            { id: "watchlist", label: `Watchlist${watchlist.length > 0 ? ` (${watchlist.length})` : ""}` },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.id ? "border-blue-500 text-white" : "border-transparent text-gray-500 hover:text-gray-300"}`}
+            >
+              {tab.label}
+            </button>
           ))}
         </div>
+      </div>
 
-        {/* Filters */}
-        <div className="flex gap-3 mb-4 flex-wrap">
-          <div className="flex gap-1 bg-dark-800 border border-dark-600 rounded-lg p-1">
-            {TIMEFRAMES.map(tf => (
-              <button
-                key={tf}
-                onClick={() => setTimeframe(tf)}
-                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${timeframe === tf ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"}`}
-              >
-                {tf}
-              </button>
+      {activeTab === "scanner" ? (
+        <main className="max-w-7xl mx-auto px-6 py-6">
+          {/* Stats bar */}
+          <div className="grid grid-cols-4 gap-4 mb-6">
+            {[
+              { label: "Total Signals", value: signals.length, color: "text-white" },
+              { label: "BUY Setups", value: buyCount, color: "text-buy" },
+              { label: "SELL Setups", value: sellCount, color: "text-sell" },
+              { label: "Avg Score", value: signals.length ? (signals.reduce((a, b) => a + b.score, 0) / signals.length).toFixed(0) + "/100" : "-", color: "text-blue-400" },
+            ].map(({ label, value, color }) => (
+              <div key={label} className="bg-dark-800 border border-dark-600 rounded-xl p-4">
+                <div className="text-xs text-gray-500 mb-1">{label}</div>
+                <div className={`text-2xl font-bold ${color}`}>{value}</div>
+              </div>
             ))}
           </div>
-          <div className="flex gap-1 bg-dark-800 border border-dark-600 rounded-lg p-1">
-            {ASSET_FILTERS.map(f => (
-              <button
-                key={f}
-                onClick={() => setAssetFilter(f)}
-                className={`px-3 py-1.5 rounded text-sm font-medium capitalize transition-colors ${assetFilter === f ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"}`}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-1 bg-dark-800 border border-dark-600 rounded-lg p-1">
-            {DIRECTION_FILTERS.map(f => (
-              <button
-                key={f}
-                onClick={() => setDirFilter(f)}
-                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${dirFilter === f ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"}`}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
-        </div>
 
-        {/* Signal Table */}
-        <div className="bg-dark-800 border border-dark-600 rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-dark-600 bg-dark-700">
-                  {COLUMNS.map(col => (
-                    <th
-                      key={col.key}
-                      onClick={() => handleSort(col.key)}
-                      className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-white transition-colors"
-                    >
-                      {col.label}
-                      <SortIcon col={col.key} sortCol={sortCol} sortDir={sortDir} />
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="px-4 py-12 text-center text-gray-500">
-                      {loading ? "Scanning markets..." : "No signals yet — click Scan Now"}
-                    </td>
-                  </tr>
-                ) : (
-                  sorted.map((s, i) => (
-                    <SignalRow
-                      key={`${s.symbol}-${i}`}
-                      signal={s}
-                      onClick={setSelectedSignal}
-                      selected={selectedSignal?.symbol === s.symbol}
-                    />
-                  ))
-                )}
-              </tbody>
-            </table>
+          {/* Filters */}
+          <div className="flex gap-3 mb-4 flex-wrap">
+            <div className="flex gap-1 bg-dark-800 border border-dark-600 rounded-lg p-1">
+              {TIMEFRAMES.map(tf => (
+                <button key={tf} onClick={() => setTimeframe(tf)}
+                  className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${timeframe === tf ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"}`}>
+                  {tf}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-1 bg-dark-800 border border-dark-600 rounded-lg p-1">
+              {ASSET_FILTERS.map(f => (
+                <button key={f} onClick={() => setAssetFilter(f)}
+                  className={`px-3 py-1.5 rounded text-sm font-medium capitalize transition-colors ${assetFilter === f ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"}`}>
+                  {f}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-1 bg-dark-800 border border-dark-600 rounded-lg p-1">
+              {DIRECTION_FILTERS.map(f => (
+                <button key={f} onClick={() => setDirFilter(f)}
+                  className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${dirFilter === f ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"}`}>
+                  {f}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
 
-        <p className="text-xs text-gray-600 mt-4 text-center">
-          Signals update every 5 minutes. Click any row for full details. This tool is for informational purposes only — not financial advice.
-        </p>
-      </main>
+          <SignalTable
+            signals={filtered}
+            loading={loading}
+            emptyMsg="No signals yet — click Scan Now"
+            onRowClick={setSelectedSignal}
+            selectedSignal={selectedSignal}
+            sortCol={sortCol}
+            sortDir={sortDir}
+            onSort={handleSort}
+          />
 
-      <SignalDetail signal={selectedSignal} onClose={() => setSelectedSignal(null)} />
+          <p className="text-xs text-gray-600 mt-4 text-center">
+            Signals update every 5 minutes. Click any row for full details. This tool is for informational purposes only — not financial advice.
+          </p>
+        </main>
+      ) : (
+        <WatchlistPage
+          watchlist={watchlist}
+          setWatchlist={setWatchlist}
+          sortCol={sortCol}
+          sortDir={sortDir}
+          onSort={handleSort}
+          selectedSignal={selectedSignal}
+          setSelectedSignal={setSelectedSignal}
+        />
+      )}
+
+      <SignalDetail
+        signal={selectedSignal}
+        onClose={() => setSelectedSignal(null)}
+        watchlist={watchlist}
+        onToggleWatchlist={toggleWatchlist}
+      />
     </div>
   );
 }

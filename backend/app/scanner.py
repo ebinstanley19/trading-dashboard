@@ -80,3 +80,11 @@ async def _send_telegram(signals: list[Signal], token: str, chat_id: str):
 
 def get_cached_signals(timeframe: str = "15m") -> tuple[list[dict], str]:
     return _cache.get(timeframe, ([], ""))
+
+
+async def scan_watchlist_symbols(symbols: list[dict], timeframe: str = "15m") -> list[dict]:
+    tasks = [_scan_asset(item["symbol"], item["asset_type"], timeframe) for item in symbols]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    signals = [r for r in results if isinstance(r, Signal)]
+    signals.sort(key=lambda x: (x.direction != "WAIT", x.score), reverse=True)
+    return [asdict(s) for s in signals]
