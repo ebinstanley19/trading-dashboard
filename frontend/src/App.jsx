@@ -483,6 +483,21 @@ function WatchlistPage({ watchlist, setWatchlist, sortCol, sortDir, onSort, sele
   );
 }
 
+async function fetchCryptoSuggestions(q) {
+  try {
+    const res = await fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(q)}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.coins || []).slice(0, 8).map(c => ({
+      symbol: `${c.symbol.toUpperCase()}USDT`,
+      assetType: "crypto",
+      label: c.name,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 function SearchBar({ onResult }) {
   const [query, setQuery] = useState("");
   const [assetType, setAssetType] = useState("stock");
@@ -493,26 +508,36 @@ function SearchBar({ onResult }) {
   const [highlighted, setHighlighted] = useState(-1);
   const [resolvedSymbol, setResolvedSymbol] = useState("");
   const wrapperRef = useRef(null);
+  const debounceRef = useRef(null);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handler = e => { if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setSuggestions([]); };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const onInputChange = (value) => {
-    setQuery(value);
-    setResolvedSymbol("");
-    setError("");
-    const q = value.trim().toLowerCase();
+  useEffect(() => {
+    const q = query.trim().toLowerCase();
     if (!q) { setSuggestions([]); return; }
-    const matches = SYMBOL_LIST.filter(s =>
+
+    // Immediate static matches (stocks + forex + top 20 crypto)
+    const staticMatches = SYMBOL_LIST.filter(s =>
       s.symbol.toLowerCase().includes(q) || s.label.toLowerCase().includes(q)
-    ).slice(0, 8);
-    setSuggestions(matches);
+    ).slice(0, 5);
+    setSuggestions(staticMatches);
     setHighlighted(-1);
-  };
+
+    // Debounced CoinGecko lookup for broader crypto coverage
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      const cryptoMatches = await fetchCryptoSuggestions(q);
+      const existingSymbols = new Set(staticMatches.map(s => s.symbol));
+      const extra = cryptoMatches.filter(c => !existingSymbols.has(c.symbol));
+      setSuggestions([...staticMatches, ...extra].slice(0, 8));
+    }, 350);
+
+    return () => clearTimeout(debounceRef.current);
+  }, [query]);
 
   const selectSuggestion = (s) => {
     setQuery(`${s.symbol} — ${s.label}`);
