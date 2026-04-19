@@ -190,6 +190,75 @@ async def fetch_forex_price(symbol: str) -> float | None:
         return None
 
 
+async def fetch_options_suggestion(symbol: str, direction: str, current_price: float) -> dict | None:
+    """Suggest a call (BUY) or put (SELL) option ~21 DTE for a US stock."""
+    try:
+        async with _yf_sem():
+            loop = asyncio.get_event_loop()
+            ticker = await loop.run_in_executor(None, lambda: yf.Ticker(symbol))
+            expirations = await loop.run_in_executor(None, lambda: ticker.options)
+
+        if not expirations:
+            return None
+
+        today = datetime.now(timezone.utc).date()
+        best_expiry = min(
+            (e for e in expirations if (datetime.strptime(e, "%Y-%m-%d").date() - today).days >= 7),
+            key=lambda e: abs((datetime.strptime(e, "%Y-%m-%d").date() - today).days - 21),
+            default=None,
+        )
+        if not best_expiry:
+            return None
+
+        dte = (datetime.strptime(best_expiry, "%Y-%m-%d").date() - today).days
+
+        async with _yf_sem():
+            loop = asyncio.get_event_loop()
+            chain = await loop.run_in_executor(None, lambda: ticker.option_chain(best_expiry))
+
+        if direction == "BUY":
+            df = chain.calls
+            target = current_price * 1.02
+            df = df[(df["strike"] >= current_price * 0.97) & (df["strike"] <= current_price * 1.08)]
+            opt_type = "CALL"
+        else:
+            df = chain.puts
+            target = current_price * 0.98
+            df = df[(df["strike"] >= current_price * 0.92) & (df["strike"] <= current_price * 1.03)]
+            opt_type = "PUT"
+
+        df = df[df["ask"] > 0]
+        if df.empty:
+            return None
+
+        best = df.iloc[(df["strike"] - target).abs().argsort().iloc[0]]
+
+        def safe(val):
+            return None if pd.isna(val) else val
+
+        bid = safe(best.get("bid"))
+        ask = safe(best.get("ask"))
+        iv = safe(best.get("impliedVolatility"))
+        mid = round((float(bid) + float(ask)) / 2, 2) if bid is not None and ask is not None else None
+
+        return {
+            "type": opt_type,
+            "strike": float(best["strike"]),
+            "expiry": best_expiry,
+            "dte": dte,
+            "bid": round(float(bid), 2) if bid is not None else None,
+            "ask": round(float(ask), 2) if ask is not None else None,
+            "mid": mid,
+            "cost_per_contract": round(mid * 100, 2) if mid else None,
+            "iv": round(float(iv) * 100, 1) if iv is not None else None,
+            "volume": int(safe(best.get("volume")) or 0),
+            "open_interest": int(safe(best.get("openInterest")) or 0),
+            "contract": str(best.get("contractSymbol", "")),
+        }
+    except Exception:
+        return None
+
+
 # Aliases kept for any external callers
 fetch_ctrader_candles = fetch_forex_candles
 fetch_ctrader_price = fetch_forex_price

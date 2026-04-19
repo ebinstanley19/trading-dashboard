@@ -152,15 +152,15 @@ function useCountdown(lastScan) {
 }
 
 const COLUMNS = [
-  { label: "Symbol",      key: "symbol" },
-  { label: "Signal",      key: "direction" },
-  { label: "Score",       key: "score" },
-  { label: "Entry",       key: "entry" },
-  { label: "Stop Loss",   key: "stop_loss" },
-  { label: "Take Profit", key: "take_profit" },
-  { label: "RSI",         key: "rsi" },
-  { label: "R:R",         key: "_rr" },
-  { label: "TF",          key: "timeframe" },
+  { label: "Symbol",      key: "symbol",      mobile: true },
+  { label: "Signal",      key: "direction",   mobile: true },
+  { label: "Score",       key: "score",       mobile: true },
+  { label: "Entry",       key: "entry",       mobile: false },
+  { label: "Stop Loss",   key: "stop_loss",   mobile: false },
+  { label: "Take Profit", key: "take_profit", mobile: false },
+  { label: "RSI",         key: "rsi",         mobile: false },
+  { label: "R:R",         key: "_rr",         mobile: false },
+  { label: "TF",          key: "timeframe",   mobile: false },
 ];
 
 function computeRR(signal) {
@@ -213,16 +213,16 @@ function SignalRow({ signal, onClick, selected }) {
       </td>
       <td className="px-4 py-3"><DirectionBadge direction={signal.direction} /></td>
       <td className="px-4 py-3"><ScoreBadge score={signal.score} /></td>
-      <td className="px-4 py-3 text-sm font-mono">{signal.entry}</td>
-      <td className="px-4 py-3 text-sm font-mono text-sell">{signal.stop_loss}</td>
-      <td className="px-4 py-3 text-sm font-mono text-buy">{signal.take_profit}</td>
-      <td className="px-4 py-3 text-sm">
+      <td className="hidden sm:table-cell px-4 py-3 text-sm font-mono">{signal.entry}</td>
+      <td className="hidden sm:table-cell px-4 py-3 text-sm font-mono text-sell">{signal.stop_loss}</td>
+      <td className="hidden sm:table-cell px-4 py-3 text-sm font-mono text-buy">{signal.take_profit}</td>
+      <td className="hidden sm:table-cell px-4 py-3 text-sm">
         <span className={signal.rsi < 35 ? "text-buy" : signal.rsi > 65 ? "text-sell" : "text-gray-300"}>
           {signal.rsi}
         </span>
       </td>
-      <td className="px-4 py-3 text-sm">{rr < 0 ? "-" : `${rr.toFixed(1)}:1`}</td>
-      <td className="px-4 py-3 text-xs text-gray-500">{signal.timeframe}</td>
+      <td className="hidden sm:table-cell px-4 py-3 text-sm">{rr < 0 ? "-" : `${rr.toFixed(1)}:1`}</td>
+      <td className="hidden sm:table-cell px-4 py-3 text-xs text-gray-500">{signal.timeframe}</td>
     </tr>
   );
 }
@@ -247,7 +247,7 @@ function SignalTable({ signals, loading, emptyMsg, onRowClick, selectedSignal, s
                 <th
                   key={col.key}
                   onClick={() => onSort(col.key)}
-                  className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-white transition-colors"
+                  className={`px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-white transition-colors ${col.mobile ? "" : "hidden sm:table-cell"}`}
                 >
                   {col.label}
                   <SortIcon col={col.key} sortCol={sortCol} sortDir={sortDir} />
@@ -282,6 +282,18 @@ function SignalTable({ signals, loading, emptyMsg, onRowClick, selectedSignal, s
 function SignalDetail({ signal, onClose, watchlist, onToggleWatchlist }) {
   if (!signal) return null;
   const inWatchlist = watchlist.some(w => w.symbol === signal.symbol && w.assetType === signal.asset_type);
+  const [optionsData, setOptionsData] = useState(null);
+  const [optionsLoading, setOptionsLoading] = useState(false);
+
+  useEffect(() => {
+    if (signal.asset_type !== "stock" || signal.direction === "WAIT") return;
+    setOptionsData(null);
+    setOptionsLoading(true);
+    fetch(`${API_BASE}/api/options/${signal.symbol}?direction=${signal.direction}&price=${signal.entry}`)
+      .then(r => r.json())
+      .then(d => { setOptionsData(d.option); setOptionsLoading(false); })
+      .catch(() => setOptionsLoading(false));
+  }, [signal.symbol, signal.direction, signal.entry]);
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto" onClick={onClose}>
       <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-3xl w-full mx-auto my-auto" onClick={e => e.stopPropagation()}>
@@ -337,6 +349,42 @@ function SignalDetail({ signal, onClose, watchlist, onToggleWatchlist }) {
             ))}
           </ul>
         </div>
+        {signal.asset_type === "stock" && signal.direction !== "WAIT" && (
+          <div className="bg-dark-700 rounded-lg p-3 mt-3">
+            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+              ⚡ Suggested Options Play
+              <span className="text-gray-600 font-normal normal-case">(US stocks only)</span>
+            </div>
+            {optionsLoading && <div className="text-xs text-gray-500 py-1">Loading options chain...</div>}
+            {!optionsLoading && !optionsData && <div className="text-xs text-gray-500 py-1">No liquid options available for this symbol.</div>}
+            {optionsData && (
+              <div className="space-y-2.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${optionsData.type === "CALL" ? "bg-green-500/20 text-green-400 border border-green-500/30" : "bg-red-500/20 text-red-400 border border-red-500/30"}`}>
+                    {optionsData.type}
+                  </span>
+                  <span className="text-white font-mono font-semibold">${optionsData.strike} strike</span>
+                  <span className="text-gray-400 text-xs">· expires {optionsData.expiry} ({optionsData.dte} DTE)</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  {[
+                    { label: "Cost / contract", value: optionsData.cost_per_contract ? `$${optionsData.cost_per_contract}` : "—" },
+                    { label: "Impl. Volatility", value: optionsData.iv ? `${optionsData.iv}%` : "—" },
+                    { label: "Volume", value: optionsData.volume || "—" },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="bg-dark-600 rounded-lg p-2 text-center">
+                      <div className="text-gray-500 mb-1">{label}</div>
+                      <div className="text-white font-semibold">{value}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="text-xs text-gray-500">
+                  Bid ${optionsData.bid} · Ask ${optionsData.ask} · <span className="text-yellow-400">Max loss = premium paid (${optionsData.cost_per_contract || "—"})</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         <div className="mt-3 p-2 bg-yellow-900/20 border border-yellow-700/30 rounded text-xs text-yellow-400 flex gap-2">
           <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
           This is a technical analysis suggestion. Always apply your own judgment before trading.
@@ -498,7 +546,7 @@ async function fetchCryptoSuggestions(q) {
   }
 }
 
-function SearchBar({ onResult }) {
+function SearchModal({ onResult, onClose }) {
   const [query, setQuery] = useState("");
   const [assetType, setAssetType] = useState("stock");
   const [timeframe, setTimeframe] = useState("15m");
@@ -506,44 +554,47 @@ function SearchBar({ onResult }) {
   const [error, setError] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [highlighted, setHighlighted] = useState(-1);
-  const [resolvedSymbol, setResolvedSymbol] = useState("");
-  const wrapperRef = useRef(null);
+  const inputRef = useRef(null);
   const debounceRef = useRef(null);
 
-  useEffect(() => {
-    const handler = e => { if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setSuggestions([]); };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
+  useEffect(() => { inputRef.current?.focus(); }, []);
 
   useEffect(() => {
     const q = query.trim().toLowerCase();
     if (!q) { setSuggestions([]); return; }
-
-    // Immediate static matches (stocks + forex + top 20 crypto)
     const staticMatches = SYMBOL_LIST.filter(s =>
       s.symbol.toLowerCase().includes(q) || s.label.toLowerCase().includes(q)
     ).slice(0, 5);
     setSuggestions(staticMatches);
     setHighlighted(-1);
-
-    // Debounced CoinGecko lookup for broader crypto coverage
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       const cryptoMatches = await fetchCryptoSuggestions(q);
-      const existingSymbols = new Set(staticMatches.map(s => s.symbol));
-      const extra = cryptoMatches.filter(c => !existingSymbols.has(c.symbol));
+      const existing = new Set(staticMatches.map(s => s.symbol));
+      const extra = cryptoMatches.filter(c => !existing.has(c.symbol));
       setSuggestions([...staticMatches, ...extra].slice(0, 8));
     }, 350);
-
     return () => clearTimeout(debounceRef.current);
   }, [query]);
 
-  const selectSuggestion = (s) => {
-    setQuery(`${s.symbol} — ${s.label}`);
-    setResolvedSymbol(s.symbol);
-    setAssetType(s.assetType);
+  const doSearch = async (sym, type, tf) => {
+    setLoading(true);
+    setError("");
     setSuggestions([]);
+    try {
+      const res = await fetch(`${API_BASE}/api/scan/symbol?symbol=${sym}&asset_type=${type}&timeframe=${tf}`, { method: "POST" });
+      const data = await res.json();
+      if (data.signal) { onResult(data.signal); onClose(); }
+      else { setError(`No signal found for ${sym}`); setLoading(false); }
+    } catch {
+      setError("Search failed");
+      setLoading(false);
+    }
+  };
+
+  const selectSuggestion = (s) => {
+    setAssetType(s.assetType);
+    doSearch(s.symbol, s.assetType, timeframe);
   };
 
   const onKeyDown = (e) => {
@@ -551,88 +602,66 @@ function SearchBar({ onResult }) {
     else if (e.key === "ArrowUp") { e.preventDefault(); setHighlighted(h => Math.max(h - 1, 0)); }
     else if (e.key === "Enter") {
       if (highlighted >= 0 && suggestions[highlighted]) selectSuggestion(suggestions[highlighted]);
-      else search();
+      else doSearch(query.trim().split(/[\s—]/)[0].toUpperCase(), assetType, timeframe);
     }
-    else if (e.key === "Escape") setSuggestions([]);
-  };
-
-  const search = async () => {
-    const sym = (resolvedSymbol || query.trim().split(/[\s—]/)[0]).toUpperCase();
-    if (!sym) return;
-    setLoading(true);
-    setError("");
-    setSuggestions([]);
-    try {
-      const res = await fetch(`${API_BASE}/api/scan/symbol?symbol=${sym}&asset_type=${assetType}&timeframe=${timeframe}`, { method: "POST" });
-      const data = await res.json();
-      if (data.signal) {
-        onResult(data.signal);
-        setQuery("");
-        setResolvedSymbol("");
-      } else {
-        setError("No data found");
-      }
-    } catch {
-      setError("Search failed");
-    } finally {
-      setLoading(false);
-    }
+    else if (e.key === "Escape") onClose();
   };
 
   return (
-    <div className="flex items-center gap-2" ref={wrapperRef}>
-      <div className="relative">
-        <div className="flex items-center bg-dark-700 border border-dark-500 rounded-lg overflow-hidden focus-within:border-blue-500 transition-colors">
-          <Search size={14} className="ml-3 text-gray-500 flex-shrink-0" />
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-start justify-center pt-16 sm:pt-24 px-4" onClick={onClose}>
+      <div className="bg-dark-800 border border-dark-500 rounded-2xl w-full max-w-xl shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-dark-600">
+          {loading
+            ? <RefreshCw size={18} className="text-blue-400 animate-spin flex-shrink-0" />
+            : <Search size={18} className="text-gray-400 flex-shrink-0" />}
           <input
+            ref={inputRef}
             value={query}
-            onChange={e => { setQuery(e.target.value); setError(""); setResolvedSymbol(""); }}
+            onChange={e => { setQuery(e.target.value); setError(""); }}
             onKeyDown={onKeyDown}
-            placeholder="Search symbol or name..."
-            className="bg-transparent px-2 py-2 text-sm text-white placeholder-gray-500 focus:outline-none w-48"
+            placeholder="Search any symbol or name..."
+            className="flex-1 bg-transparent text-white text-base placeholder-gray-500 focus:outline-none"
             autoComplete="off"
           />
-          <select
-            value={assetType}
-            onChange={e => setAssetType(e.target.value)}
-            className="bg-dark-600 border-l border-dark-500 px-2 py-2 text-xs text-gray-300 focus:outline-none"
-          >
-            {ASSET_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <select
-            value={timeframe}
-            onChange={e => setTimeframe(e.target.value)}
-            className="bg-dark-600 border-l border-dark-500 px-2 py-2 text-xs text-gray-300 focus:outline-none"
-          >
-            {TIMEFRAMES.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
+          {query && <button onClick={() => setQuery("")} className="text-gray-500 hover:text-white transition-colors"><X size={16} /></button>}
+          <kbd className="hidden sm:block text-xs text-gray-600 bg-dark-700 border border-dark-600 rounded px-1.5 py-0.5 font-mono">Esc</kbd>
         </div>
+
         {suggestions.length > 0 && (
-          <ul className="absolute z-50 top-full mt-1 left-0 w-full bg-dark-700 border border-dark-500 rounded-lg overflow-hidden shadow-xl">
+          <ul className="max-h-72 overflow-y-auto divide-y divide-dark-700/50">
             {suggestions.map((s, i) => (
               <li
                 key={s.symbol}
                 onMouseDown={() => selectSuggestion(s)}
-                className={`flex items-center justify-between px-3 py-2 cursor-pointer text-sm ${i === highlighted ? "bg-blue-600" : "hover:bg-dark-600"}`}
+                className={`flex items-center gap-3 px-5 py-3.5 cursor-pointer transition-colors ${i === highlighted ? "bg-blue-600/20" : "hover:bg-dark-700"}`}
               >
-                <span className="font-mono font-semibold text-white">{s.symbol}</span>
-                <span className="text-gray-400 text-xs ml-2 truncate">{s.label}</span>
-                <span className={`ml-2 text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${s.assetType === "crypto" ? "bg-yellow-900 text-yellow-300" : s.assetType === "forex" ? "bg-purple-900 text-purple-300" : "bg-blue-900 text-blue-300"}`}>
+                <span className="font-mono font-bold text-white w-28 flex-shrink-0 text-sm">{s.symbol}</span>
+                <span className="text-gray-400 text-sm flex-1 truncate">{s.label}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${s.assetType === "crypto" ? "bg-yellow-500/15 text-yellow-300" : s.assetType === "forex" ? "bg-purple-500/15 text-purple-300" : "bg-blue-500/15 text-blue-300"}`}>
                   {s.assetType}
                 </span>
               </li>
             ))}
           </ul>
         )}
+
+        {error && <div className="px-5 py-3 text-sm text-red-400 border-t border-dark-600">{error}</div>}
+
+        <div className="flex items-center gap-3 px-5 py-3.5 border-t border-dark-600 flex-wrap">
+          <select value={assetType} onChange={e => setAssetType(e.target.value)} className="bg-dark-700 border border-dark-600 rounded-lg px-2.5 py-1.5 text-xs text-gray-300 focus:outline-none">
+            {ASSET_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <select value={timeframe} onChange={e => setTimeframe(e.target.value)} className="bg-dark-700 border border-dark-600 rounded-lg px-2.5 py-1.5 text-xs text-gray-300 focus:outline-none">
+            {TIMEFRAMES.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <span className="text-xs text-gray-600 flex-1">Type exact ticker + Enter, or pick from suggestions above</span>
+          <button
+            onClick={() => doSearch(query.trim().split(/[\s—]/)[0].toUpperCase(), assetType, timeframe)}
+            disabled={loading || !query.trim()}
+            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-lg text-xs font-medium transition-colors"
+          >Search</button>
+        </div>
       </div>
-      <button
-        onClick={search}
-        disabled={loading || !query.trim()}
-        className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
-      >
-        {loading ? <RefreshCw size={14} className="animate-spin" /> : <Search size={14} />}
-      </button>
-      {error && <span className="text-xs text-red-400">{error}</span>}
     </div>
   );
 }
@@ -712,6 +741,15 @@ export default function App() {
   const [wsStatus, setWsStatus] = useState("disconnected");
   const [selectedSignal, setSelectedSignal] = useState(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") { e.preventDefault(); setShowSearch(true); }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
   const [timeframe, setTimeframe] = useState("15m");
   const [assetFilter, setAssetFilter] = useState("all");
   const [dirFilter, setDirFilter] = useState("all");
@@ -815,6 +853,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-dark-900 text-gray-200">
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
+      {showSearch && <SearchModal onResult={(sig) => { setSelectedSignal(sig); }} onClose={() => setShowSearch(false)} />}
       {/* Header */}
       <header className="bg-dark-800 border-b border-dark-600 px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 flex-wrap">
@@ -823,7 +862,14 @@ export default function App() {
             <p className="text-xs text-gray-500 mt-0.5">US Stocks · Crypto · Forex/CFDs</p>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
-            <SearchBar onResult={setSelectedSignal} />
+            <button
+              onClick={() => setShowSearch(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-dark-700 border border-dark-600 hover:border-dark-400 rounded-xl text-sm text-gray-400 hover:text-white transition-colors group"
+            >
+              <Search size={14} className="group-hover:text-blue-400 transition-colors" />
+              <span className="hidden sm:inline">Search...</span>
+              <kbd className="hidden md:inline-flex items-center gap-1 text-xs text-gray-600 bg-dark-600 border border-dark-500 rounded px-1.5 py-0.5 font-mono">⌘K</kbd>
+            </button>
             <div className={`flex items-center gap-1.5 text-xs ${wsStatus === "connected" ? "text-buy" : "text-gray-500"}`}>
               {wsStatus === "connected" ? <Wifi size={14} /> : <WifiOff size={14} />}
               {wsStatus === "connected" ? "Live" : "Reconnecting..."}
@@ -876,12 +922,12 @@ export default function App() {
       {activeTab === "scanner" ? (
         <main className="max-w-7xl mx-auto px-6 py-6">
           {/* Stats bar */}
-          <div className="grid grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
             {[
               { label: "Total Signals", value: signals.length, color: "text-white" },
               { label: "BUY Setups", value: buyCount, color: "text-buy" },
               { label: "SELL Setups", value: sellCount, color: "text-sell" },
-              { label: "Avg Score", value: signals.length ? (signals.reduce((a, b) => a + b.score, 0) / signals.length).toFixed(0) + "/100" : "-", color: "text-blue-400" },
+              { label: "Avg Score", value: signals.length ? (signals.reduce((a, b) => a + b.score, 0) / signals.length).toFixed(0) + "/100" : "—", color: "text-blue-400" },
             ].map(({ label, value, color }) => (
               <div key={label} className="bg-dark-800 border border-dark-600 rounded-xl p-4">
                 <div className="text-xs text-gray-500 mb-1">{label}</div>
