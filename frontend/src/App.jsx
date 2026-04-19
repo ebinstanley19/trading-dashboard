@@ -637,6 +637,73 @@ function SearchBar({ onResult }) {
   );
 }
 
+function HelpModal({ onClose }) {
+  return (
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-dark-800 border border-dark-600 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-dark-600">
+          <h2 className="text-white font-bold text-lg">How to use this dashboard</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={18} /></button>
+        </div>
+        <div className="px-6 py-5 space-y-5 text-sm text-gray-300">
+
+          <div>
+            <p className="text-white font-semibold mb-2">Step 1 — Find a setup</p>
+            <p>On the <span className="text-blue-400">Live Scanner</span> tab, look for signals with a high <span className="text-white font-medium">Score</span> (aim for 65+). The higher the score, the more indicators agree.</p>
+          </div>
+
+          <div>
+            <p className="text-white font-semibold mb-2">Step 2 — Check the direction</p>
+            <div className="space-y-1.5 mt-1">
+              <div className="flex items-center gap-2"><span className="text-green-400 font-bold w-10">BUY</span><span>Price is likely going up. Look to buy/long.</span></div>
+              <div className="flex items-center gap-2"><span className="text-red-400 font-bold w-10">SELL</span><span>Price is likely going down. Look to sell/short.</span></div>
+              <div className="flex items-center gap-2"><span className="text-gray-400 font-bold w-10">WAIT</span><span>No clear signal. Stay out for now.</span></div>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-white font-semibold mb-2">Step 3 — Click the signal to see the chart</p>
+            <p>Click any row to open the detail panel. Check that the chart actually looks like what the signal is saying before you act on it.</p>
+          </div>
+
+          <div>
+            <p className="text-white font-semibold mb-2">Step 4 — Use the levels</p>
+            <div className="bg-dark-700 rounded-lg p-3 space-y-1.5">
+              <div className="flex justify-between"><span className="text-gray-400">Entry</span><span className="text-white">The price right now — where you enter the trade</span></div>
+              <div className="flex justify-between"><span className="text-red-400">Stop Loss</span><span className="text-white">Exit here if the trade goes wrong — limits your loss</span></div>
+              <div className="flex justify-between"><span className="text-green-400">Take Profit</span><span className="text-white">Exit here when in profit — lock in your gains</span></div>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">The risk:reward is always 1:2 — you risk 1 to potentially make 2.</p>
+          </div>
+
+          <div>
+            <p className="text-white font-semibold mb-2">Reading the indicators</p>
+            <div className="space-y-1.5">
+              <div><span className="text-white font-medium">RSI below 35</span> — asset is oversold, good time to buy. <span className="text-white font-medium">Above 65</span> — overbought, good time to sell.</div>
+              <div><span className="text-white font-medium">EMA Bullish</span> — the overall trend is up. EMA Bearish — trend is down.</div>
+              <div><span className="text-white font-medium">Patterns</span> (e.g. "Bullish Engulfing") — candlestick formations that confirm the move.</div>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-white font-semibold mb-2">Timeframes</p>
+            <div className="space-y-1">
+              <div><span className="text-white font-medium">15m</span> — short trades, fast in and out (minutes to hours)</div>
+              <div><span className="text-white font-medium">30m</span> — medium trades (a few hours)</div>
+              <div><span className="text-white font-medium">1h</span> — stronger signals, holds longer (hours to a day)</div>
+            </div>
+          </div>
+
+          <div className="bg-yellow-900/30 border border-yellow-700/40 rounded-lg p-3 text-yellow-300 text-xs">
+            <span className="font-semibold">Remember:</span> This dashboard shows potential setups based on technical indicators. Always do your own research. Never risk money you can't afford to lose.
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState("scanner");
   const [signals, setSignals] = useState([]);
@@ -644,6 +711,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [wsStatus, setWsStatus] = useState("disconnected");
   const [selectedSignal, setSelectedSignal] = useState(null);
+  const [showHelp, setShowHelp] = useState(false);
   const [timeframe, setTimeframe] = useState("15m");
   const [assetFilter, setAssetFilter] = useState("all");
   const [dirFilter, setDirFilter] = useState("all");
@@ -746,6 +814,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-dark-900 text-gray-200">
+      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
       {/* Header */}
       <header className="bg-dark-800 border-b border-dark-600 px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 flex-wrap">
@@ -769,6 +838,11 @@ export default function App() {
                 )}
               </div>
             )}
+            <button
+              onClick={() => setShowHelp(true)}
+              className="flex items-center justify-center w-8 h-8 rounded-full border border-dark-500 text-gray-400 hover:text-white hover:border-gray-400 text-sm font-bold transition-colors"
+              title="How to use"
+            >?</button>
             <button
               onClick={triggerScan}
               disabled={loading}
