@@ -898,8 +898,8 @@ export default function App() {
     return true;
   });
 
-  const buyCount = signals.filter(s => s.direction === "BUY").length;
-  const sellCount = signals.filter(s => s.direction === "SELL").length;
+  const buyCount = filtered.filter(s => s.direction === "BUY").length;
+  const sellCount = filtered.filter(s => s.direction === "SELL").length;
 
   return (
     <div className="min-h-screen bg-dark-900 text-gray-200">
@@ -974,10 +974,10 @@ export default function App() {
           {/* Stats bar */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
             {[
-              { label: "Total Signals", value: signals.length, color: "text-white" },
+              { label: "Showing", value: filtered.length, color: "text-white" },
               { label: "BUY Setups", value: buyCount, color: "text-buy" },
               { label: "SELL Setups", value: sellCount, color: "text-sell" },
-              { label: "Avg Score", value: signals.length ? (signals.reduce((a, b) => a + b.score, 0) / signals.length).toFixed(0) + "/100" : "—", color: "text-blue-400" },
+              { label: "Avg Score", value: filtered.length ? (filtered.reduce((a, b) => a + b.score, 0) / filtered.length).toFixed(0) + "/100" : "—", color: "text-blue-400" },
             ].map(({ label, value, color }) => (
               <div key={label} className="bg-dark-800 border border-dark-600 rounded-xl p-4">
                 <div className="text-xs text-gray-500 mb-1">{label}</div>
