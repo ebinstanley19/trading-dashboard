@@ -60,31 +60,153 @@ def _volume_spike(volume: pd.Series, lookback: int = 20) -> bool:
     return volume.iloc[-1] > avg_vol * 1.5
 
 
-def _candlestick_pattern(df: pd.DataFrame) -> tuple[str, float]:
-    """Returns (pattern_name, score_delta). Positive = bullish, negative = bearish."""
-    o, h, l, c = df["open"].iloc[-1], df["high"].iloc[-1], df["low"].iloc[-1], df["close"].iloc[-1]
-    prev_o, prev_c = df["open"].iloc[-2], df["close"].iloc[-2]
-    body = abs(c - o)
-    full_range = h - l if h != l else 0.0001
-    lower_wick = (min(o, c) - l)
-    upper_wick = (h - max(o, c))
+def _candlestick_patterns(df: pd.DataFrame) -> list[tuple[str, float]]:
+    """Returns list of (pattern_name, score_delta). Positive = bullish, negative = bearish."""
+    if len(df) < 3:
+        return []
 
-    # Bullish hammer
-    if lower_wick > body * 2 and upper_wick < body * 0.5 and c > o:
-        return "Hammer", 10.0
-    # Bearish shooting star
-    if upper_wick > body * 2 and lower_wick < body * 0.5 and c < o:
-        return "Shooting Star", -10.0
-    # Bullish engulfing
-    if prev_c < prev_o and c > o and c > prev_o and o < prev_c:
-        return "Bullish Engulfing", 12.0
-    # Bearish engulfing
-    if prev_c > prev_o and c < o and c < prev_o and o > prev_c:
-        return "Bearish Engulfing", -12.0
-    # Doji
-    if body / full_range < 0.1:
-        return "Doji", 0.0
-    return "None", 0.0
+    o0, h0, l0, c0 = df["open"].iloc[-1], df["high"].iloc[-1], df["low"].iloc[-1], df["close"].iloc[-1]
+    o1, h1, l1, c1 = df["open"].iloc[-2], df["high"].iloc[-2], df["low"].iloc[-2], df["close"].iloc[-2]
+    o2, h2, l2, c2 = df["open"].iloc[-3], df["high"].iloc[-3], df["low"].iloc[-3], df["close"].iloc[-3]
+
+    body0 = abs(c0 - o0)
+    body1 = abs(c1 - o1)
+    body2 = abs(c2 - o2)
+    rng0 = h0 - l0 if h0 != l0 else 1e-9
+    rng1 = h1 - l1 if h1 != l1 else 1e-9
+
+    upper_wick0 = h0 - max(o0, c0)
+    lower_wick0 = min(o0, c0) - l0
+    upper_wick1 = h1 - max(o1, c1)
+    lower_wick1 = min(o1, c1) - l1
+
+    bull0 = c0 > o0
+    bear0 = c0 < o0
+    bull1 = c1 > o1
+    bear1 = c1 < o1
+    bull2 = c2 > o2
+    bear2 = c2 < o2
+
+    # Trend context: compare last close vs 5 bars ago
+    recent_up = c0 > df["close"].iloc[-6] if len(df) >= 6 else bull0
+    recent_down = not recent_up
+
+    doji0 = body0 / rng0 < 0.1
+    doji1 = body1 / rng1 < 0.1
+
+    patterns: list[tuple[str, float]] = []
+
+    # ── Single-candle ──────────────────────────────────────────
+    # Hammer / Hanging Man (same shape, context decides direction)
+    if lower_wick0 > body0 * 2 and upper_wick0 < body0 * 0.5 and body0 > 0:
+        if recent_down:
+            patterns.append(("Hammer", 10.0))
+        else:
+            patterns.append(("Hanging Man", -8.0))
+
+    # Inverted Hammer / Shooting Star
+    if upper_wick0 > body0 * 2 and lower_wick0 < body0 * 0.5 and body0 > 0:
+        if recent_down:
+            patterns.append(("Inverted Hammer", 7.0))
+        else:
+            patterns.append(("Shooting Star", -10.0))
+
+    # Bullish Marubozu — strong bull candle, tiny wicks
+    if bull0 and body0 / rng0 > 0.85:
+        patterns.append(("Bullish Marubozu", 9.0))
+
+    # Bearish Marubozu
+    if bear0 and body0 / rng0 > 0.85:
+        patterns.append(("Bearish Marubozu", -9.0))
+
+    # Dragonfly Doji — open ≈ close ≈ high, long lower wick
+    if doji0 and lower_wick0 > rng0 * 0.6 and upper_wick0 < rng0 * 0.1:
+        patterns.append(("Dragonfly Doji", 8.0))
+
+    # Gravestone Doji — open ≈ close ≈ low, long upper wick
+    if doji0 and upper_wick0 > rng0 * 0.6 and lower_wick0 < rng0 * 0.1:
+        patterns.append(("Gravestone Doji", -8.0))
+
+    # Standard Doji (indecision — slight bias by context)
+    if doji0 and not patterns:
+        score = 3.0 if recent_down else -3.0
+        patterns.append(("Doji", score))
+
+    # Spinning Top — small body, wicks on both sides
+    if body0 / rng0 < 0.3 and upper_wick0 > body0 and lower_wick0 > body0 and not doji0:
+        patterns.append(("Spinning Top", 2.0 if recent_down else -2.0))
+
+    # ── Two-candle ────────────────────────────────────────────
+    # Bullish Engulfing
+    if bear1 and bull0 and c0 > o1 and o0 < c1:
+        patterns.append(("Bullish Engulfing", 12.0))
+
+    # Bearish Engulfing
+    if bull1 and bear0 and c0 < o1 and o0 > c1:
+        patterns.append(("Bearish Engulfing", -12.0))
+
+    # Bullish Harami — small bull candle inside prior bearish
+    if bear1 and bull0 and o0 > c1 and c0 < o1 and body0 < body1 * 0.5:
+        patterns.append(("Bullish Harami", 8.0))
+
+    # Bearish Harami
+    if bull1 and bear0 and o0 < c1 and c0 > o1 and body0 < body1 * 0.5:
+        patterns.append(("Bearish Harami", -8.0))
+
+    # Piercing Line — bearish candle, then bull that closes above midpoint
+    mid1 = (o1 + c1) / 2
+    if bear1 and bull0 and o0 < c1 and c0 > mid1 and c0 < o1:
+        patterns.append(("Piercing Line", 10.0))
+
+    # Dark Cloud Cover
+    mid1b = (o1 + c1) / 2
+    if bull1 and bear0 and o0 > c1 and c0 < mid1b and c0 > o1:
+        patterns.append(("Dark Cloud Cover", -10.0))
+
+    # Tweezer Bottom — two candles with same low (within 0.1%)
+    if abs(l0 - l1) / (l0 + 1e-9) < 0.001 and bear1 and bull0:
+        patterns.append(("Tweezer Bottom", 7.0))
+
+    # Tweezer Top
+    if abs(h0 - h1) / (h0 + 1e-9) < 0.001 and bull1 and bear0:
+        patterns.append(("Tweezer Top", -7.0))
+
+    # ── Three-candle ──────────────────────────────────────────
+    # Morning Star — bear, small/doji, bull that recovers above midpoint
+    mid2 = (o2 + c2) / 2
+    if bear2 and (doji1 or body1 < body2 * 0.3) and bull0 and c0 > mid2:
+        patterns.append(("Morning Star", 15.0))
+
+    # Evening Star
+    mid2b = (o2 + c2) / 2
+    if bull2 and (doji1 or body1 < body2 * 0.3) and bear0 and c0 < mid2b:
+        patterns.append(("Evening Star", -15.0))
+
+    # Three White Soldiers — three consecutive bullish candles, each closes higher
+    if bull0 and bull1 and bull2 and c0 > c1 > c2 and o0 > o1 > o2:
+        patterns.append(("Three White Soldiers", 14.0))
+
+    # Three Black Crows
+    if bear0 and bear1 and bear2 and c0 < c1 < c2 and o0 < o1 < o2:
+        patterns.append(("Three Black Crows", -14.0))
+
+    # Three Inside Up — bearish, bullish engulfing, bullish close above
+    if bear2 and bull1 and c1 > o2 and o1 < c2 and bull0 and c0 > c1:
+        patterns.append(("Three Inside Up", 12.0))
+
+    # Three Inside Down
+    if bull2 and bear1 and c1 < o2 and o1 > c2 and bear0 and c0 < c1:
+        patterns.append(("Three Inside Down", -12.0))
+
+    # Abandoned Baby Bull — gap down doji, then gap up bullish
+    if bear2 and doji1 and h1 < l2 and bull0 and l0 > h1:
+        patterns.append(("Abandoned Baby Bull", 15.0))
+
+    # Abandoned Baby Bear
+    if bull2 and doji1 and l1 > h2 and bear0 and h0 < l1:
+        patterns.append(("Abandoned Baby Bear", -15.0))
+
+    return patterns
 
 
 def _support_resistance(close: pd.Series, lookback: int = 50) -> tuple[float, float]:
@@ -109,7 +231,7 @@ def analyze(symbol: str, df: pd.DataFrame, asset_type: str, timeframe: str = "15
     rsi = _rsi(close)
     macd_line, signal_line, macd_hist = _macd(close)
     bb_upper, bb_mid, bb_lower = _bollinger(close)
-    candle_name, candle_score = _candlestick_pattern(df)
+    detected_patterns = _candlestick_patterns(df)
     support, resistance = _support_resistance(close)
 
     price = close.iloc[-1]
@@ -180,13 +302,13 @@ def analyze(symbol: str, df: pd.DataFrame, asset_type: str, timeframe: str = "15
         else:
             bear_score += 10
 
-    # --- Candlestick pattern (up to 12 pts) ---
-    if candle_name != "None":
-        reasons.append(f"Pattern: {candle_name}")
-        if candle_score > 0:
-            bull_score += candle_score
-        elif candle_score < 0:
-            bear_score += abs(candle_score)
+    # --- Candlestick patterns (capped at 20 pts total) ---
+    candle_bull = min(sum(s for _, s in detected_patterns if s > 0), 20.0)
+    candle_bear = min(sum(abs(s) for _, s in detected_patterns if s < 0), 20.0)
+    bull_score += candle_bull
+    bear_score += candle_bear
+    for name, _ in detected_patterns:
+        reasons.append(f"Pattern: {name}")
 
     # --- Support/Resistance proximity (8 pts) ---
     proximity_pct = 0.005  # 0.5%
@@ -198,8 +320,8 @@ def analyze(symbol: str, df: pd.DataFrame, asset_type: str, timeframe: str = "15
         reasons.append("Near resistance level")
 
     # --- Determine direction and score ---
-    # Max possible raw score: 25 EMA + 20 RSI + 20 MACD + 15 BB + 10 vol + 12 candle + 8 S/R = 110
-    _MAX_RAW = 110.0
+    # Max possible raw score: 25 EMA + 20 RSI + 20 MACD + 15 BB + 10 vol + 20 candle + 8 S/R = 118
+    _MAX_RAW = 118.0
 
     total = bull_score + bear_score
     if total == 0:
