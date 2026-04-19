@@ -342,16 +342,22 @@ def analyze(symbol: str, df: pd.DataFrame, asset_type: str, timeframe: str = "15
         direction = "WAIT"
         score = (max(bull_score, bear_score) / _MAX_RAW) * 100
 
-    atr = (high - low).tail(14).mean()
+    # 20-bar ATR for swing-stable readings
+    atr = (high - low).tail(20).mean()
+
+    # Wider stops on longer timeframes — swing trades need room to breathe
+    sl_mult = {"15m": 2.0, "30m": 2.5, "1h": 3.0}.get(timeframe, 2.0)
+    tp_mult = sl_mult * 2  # always 1:2 R:R
+
     if direction == "BUY":
-        stop_loss = round(price - atr * 1.5, 5)
-        take_profit = round(price + atr * 3.0, 5)
+        stop_loss = round(price - atr * sl_mult, 5)
+        take_profit = round(price + atr * tp_mult, 5)
     elif direction == "SELL":
-        stop_loss = round(price + atr * 1.5, 5)
-        take_profit = round(price - atr * 3.0, 5)
+        stop_loss = round(price + atr * sl_mult, 5)
+        take_profit = round(price - atr * tp_mult, 5)
     else:
-        stop_loss = round(price - atr, 5)
-        take_profit = round(price + atr, 5)
+        stop_loss = round(price - atr * 1.5, 5)
+        take_profit = round(price + atr * 1.5, 5)
 
     return Signal(
         symbol=symbol,
