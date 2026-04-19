@@ -794,64 +794,74 @@ function HelpModal({ onClose }) {
 
           {/* Best use cases */}
           <div>
-            <p className="text-white font-semibold mb-2">What this app is actually good for</p>
+            <p className="text-white font-semibold mb-2">What this app is built for</p>
             <div className="space-y-2">
-              <div className="flex gap-2.5"><span className="text-green-400 flex-shrink-0 mt-0.5">✓</span><span><span className="text-white font-medium">Crypto day/swing trading</span> — near real-time data, signals refresh every 5 min. This works.</span></div>
-              <div className="flex gap-2.5"><span className="text-green-400 flex-shrink-0 mt-0.5">✓</span><span><span className="text-white font-medium">Stock swing trading</span> — holding for days or weeks. A 15-min delay doesn't matter if you're planning a multi-day trade.</span></div>
-              <div className="flex gap-2.5"><span className="text-green-400 flex-shrink-0 mt-0.5">✓</span><span><span className="text-white font-medium">End-of-day stock screening</span> — scan after market close, identify setups, enter the next morning.</span></div>
-              <div className="flex gap-2.5"><span className="text-red-400 flex-shrink-0 mt-0.5">✗</span><span><span className="text-white font-medium">Stock day trading</span> — the 15-min delay means the entry price you see may no longer be available. Don't use this for intraday stocks.</span></div>
+              <div className="flex gap-2.5"><span className="text-green-400 flex-shrink-0 mt-0.5">✓</span><span><span className="text-white font-medium">Swing trading (1 week+)</span> — the levels, chart defaults, and signal logic are all tuned for multi-day to multi-week holds.</span></div>
+              <div className="flex gap-2.5"><span className="text-green-400 flex-shrink-0 mt-0.5">✓</span><span><span className="text-white font-medium">Crypto</span> — near real-time data, scans every 5 min. Best asset class to use this for.</span></div>
+              <div className="flex gap-2.5"><span className="text-green-400 flex-shrink-0 mt-0.5">✓</span><span><span className="text-white font-medium">Stocks &amp; Forex swing</span> — 15-min delayed data is fine for week+ holds. Scan after market close, enter next morning.</span></div>
+              <div className="flex gap-2.5"><span className="text-red-400 flex-shrink-0 mt-0.5">✗</span><span><span className="text-white font-medium">Stock day trading</span> — 15-min delayed prices make intraday entries unreliable. Don't use this for same-day stock trades.</span></div>
             </div>
           </div>
 
           <div>
             <p className="text-white font-semibold mb-2">Step 1 — Find a setup</p>
-            <p>On the <span className="text-blue-400">Live Scanner</span> tab, look for signals with a high <span className="text-white font-medium">Score</span> (aim for 65+). The higher the score, the more indicators agree.</p>
+            <p>On the <span className="text-blue-400">Live Scanner</span> tab, look for signals with a high <span className="text-white font-medium">Score</span> (aim for 65+). Filter by asset type or direction using the buttons above the table.</p>
           </div>
 
           <div>
             <p className="text-white font-semibold mb-2">Step 2 — Check the direction</p>
             <div className="space-y-1.5 mt-1">
-              <div className="flex items-center gap-2"><span className="text-green-400 font-bold w-10">BUY</span><span>Price is likely going up. Look to buy/long.</span></div>
-              <div className="flex items-center gap-2"><span className="text-red-400 font-bold w-10">SELL</span><span>Price is likely going down. Look to sell/short.</span></div>
+              <div className="flex items-center gap-2"><span className="text-green-400 font-bold w-10">BUY</span><span>Price likely going up — look to buy/long.</span></div>
+              <div className="flex items-center gap-2"><span className="text-red-400 font-bold w-10">SELL</span><span>Price likely going down — look to sell/short.</span></div>
               <div className="flex items-center gap-2"><span className="text-gray-400 font-bold w-10">WAIT</span><span>No clear signal. Stay out for now.</span></div>
             </div>
           </div>
 
           <div>
-            <p className="text-white font-semibold mb-2">Step 3 — Always check the chart</p>
-            <p>Click any row to open the detail panel. <span className="text-white font-medium">Always look at the chart before acting</span> — does it actually look like the signal is saying? The app doesn't know about news, earnings, or macro events.</p>
+            <p className="text-white font-semibold mb-2">Step 3 — Check the daily chart first</p>
+            <p>Click any row to open the detail panel. The chart <span className="text-white font-medium">defaults to the 1D (daily) view</span> — this is what matters for a week+ hold. Use the Signal / 4H / 1D / 1W buttons to switch. Always confirm the bigger trend agrees with the signal before acting.</p>
           </div>
 
           <div>
             <p className="text-white font-semibold mb-2">Step 4 — Use the levels</p>
             <div className="bg-dark-700 rounded-lg p-3 space-y-1.5">
-              <div className="flex justify-between"><span className="text-gray-400">Entry</span><span className="text-white">The price right now — where you enter the trade</span></div>
-              <div className="flex justify-between"><span className="text-red-400">Stop Loss</span><span className="text-white">Exit here if the trade goes wrong — limits your loss</span></div>
-              <div className="flex justify-between"><span className="text-green-400">Take Profit</span><span className="text-white">Exit here when in profit — lock in your gains</span></div>
+              <div className="flex justify-between gap-4"><span className="text-gray-400 flex-shrink-0">Entry</span><span className="text-white text-right">Current price — where you open the trade</span></div>
+              <div className="flex justify-between gap-4"><span className="text-red-400 flex-shrink-0">Stop Loss</span><span className="text-white text-right">Exit here if wrong — limits your loss (min 3% stocks, 5% crypto)</span></div>
+              <div className="flex justify-between gap-4"><span className="text-green-400 flex-shrink-0">Take Profit</span><span className="text-white text-right">Exit here in profit — target is at least 8% stocks, 12% crypto</span></div>
             </div>
-            <p className="text-xs text-gray-500 mt-2">The risk:reward is always 1:2 — you risk 1 to potentially make 2.</p>
+            <p className="text-xs text-gray-500 mt-2">Risk:reward is always at least 1:2 — you risk 1 to make 2. Levels are wider on longer timeframes to avoid being shaken out.</p>
+          </div>
+
+          <div>
+            <p className="text-white font-semibold mb-2">Step 5 — Run the Backtest</p>
+            <p>Inside the signal detail, tap <span className="text-white font-medium">📊 Backtest</span> to see how this signal type has performed historically on the last 60 days of data. Check the win rate — below 45% means the setup hasn't been reliable lately.</p>
           </div>
 
           <div>
             <p className="text-white font-semibold mb-2">Reading the indicators</p>
             <div className="space-y-1.5">
-              <div><span className="text-white font-medium">RSI below 35</span> — asset is oversold, good time to buy. <span className="text-white font-medium">Above 65</span> — overbought, good time to sell.</div>
-              <div><span className="text-white font-medium">EMA Bullish</span> — the overall trend is up. EMA Bearish — trend is down.</div>
-              <div><span className="text-white font-medium">Patterns</span> (e.g. "Bullish Engulfing") — candlestick formations that confirm the move.</div>
+              <div><span className="text-white font-medium">RSI below 35</span> — oversold, potential buy. <span className="text-white font-medium">Above 65</span> — overbought, potential sell.</div>
+              <div><span className="text-white font-medium">EMA Bullish</span> — overall trend is up. EMA Bearish — trend is down.</div>
+              <div><span className="text-white font-medium">Patterns</span> (e.g. "Bullish Engulfing") — candlestick formations that confirm the direction.</div>
             </div>
           </div>
 
           <div>
-            <p className="text-white font-semibold mb-2">Timeframes</p>
-            <div className="space-y-1">
-              <div><span className="text-white font-medium">15m</span> — short trades, fast in and out (minutes to hours)</div>
-              <div><span className="text-white font-medium">30m</span> — medium trades (a few hours)</div>
-              <div><span className="text-white font-medium">1h</span> — stronger signals, holds longer (hours to a day)</div>
+            <p className="text-white font-semibold mb-2">Signal detection timeframes</p>
+            <div className="space-y-1 text-gray-300">
+              <div><span className="text-white font-medium">15m</span> — entry timing signal. Use the 1D chart to confirm trend, then enter on 15m.</div>
+              <div><span className="text-white font-medium">30m</span> — slightly stronger confirmation. Good for entries on swing setups.</div>
+              <div><span className="text-white font-medium">1h</span> — most reliable for week+ holds. Fewer signals but higher quality.</div>
             </div>
           </div>
 
+          <div>
+            <p className="text-white font-semibold mb-2">Watchlist</p>
+            <p>Add any symbol on the <span className="text-blue-400">Watchlist</span> tab — just type the ticker and the app auto-detects whether it's stock, crypto, or forex. Click <span className="text-white font-medium">Scan Watchlist</span> to get signals for your specific symbols only.</p>
+          </div>
+
           <div className="bg-yellow-900/30 border border-yellow-700/40 rounded-lg p-3 text-yellow-300 text-xs">
-            <span className="font-semibold">Remember:</span> This is a technical analysis screener — it knows nothing about news, earnings, or market events. Always apply your own judgment. Never risk money you can't afford to lose.
+            <span className="font-semibold">Remember:</span> This is a technical analysis screener — it knows nothing about news, earnings, or macro events. Always check the news before entering a trade. Never risk money you can't afford to lose.
           </div>
 
         </div>
