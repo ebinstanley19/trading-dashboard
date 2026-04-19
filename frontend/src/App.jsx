@@ -6,9 +6,9 @@ const WS_BASE = API_BASE.replace(/^https/, "wss").replace(/^http/, "ws");
 const SCAN_INTERVAL_SEC = 300;
 
 const TIMEFRAMES = ["15m", "30m", "1h"];
-const ASSET_FILTERS = ["ALL", "STOCK", "CRYPTO", "FOREX"];
+const ASSET_FILTERS = ["all", "stock", "crypto", "forex"];
 const ASSET_TYPES = ["stock", "crypto", "forex"];
-const DIRECTION_FILTERS = ["ALL", "BUY", "SELL", "WAIT"];
+const DIRECTION_FILTERS = ["all", "BUY", "SELL", "WAIT"];
 
 const SYMBOL_LIST = [
   // Stocks
@@ -1028,7 +1028,7 @@ export default function App() {
             </div>
             <div className="flex gap-1 bg-dark-800 border border-dark-600 rounded-lg p-1">
               {ASSET_FILTERS.map(f => (
-                <button key={f} onClick={() => setAssetFilter(f)}
+                <button key={f} onClick={() => setAssetFilter(assetFilter === f && f !== "all" ? "all" : f)}
                   className={`px-3 py-1.5 rounded text-sm font-medium capitalize transition-colors ${assetFilter === f ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"}`}>
                   {f}
                 </button>
@@ -1036,7 +1036,7 @@ export default function App() {
             </div>
             <div className="flex gap-1 bg-dark-800 border border-dark-600 rounded-lg p-1">
               {DIRECTION_FILTERS.map(f => (
-                <button key={f} onClick={() => setDirFilter(f)}
+                <button key={f} onClick={() => setDirFilter(dirFilter === f && f !== "all" ? "all" : f)}
                   className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${dirFilter === f ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"}`}>
                   {f}
                 </button>
