@@ -494,6 +494,7 @@ function WatchlistPage({ watchlist, setWatchlist, sortCol, sortDir, onSort, sele
   const [addSymbol, setAddSymbol] = useState("");
   const [addAssetType, setAddAssetType] = useState("stock");
   const [addTimeframe, setAddTimeframe] = useState("15m");
+  const [addError, setAddError] = useState("");
   const [signals, setSignals] = useState([]);
   const [loading, setLoading] = useState(false);
   const [scanTime, setScanTime] = useState("");
@@ -501,9 +502,13 @@ function WatchlistPage({ watchlist, setWatchlist, sortCol, sortDir, onSort, sele
   const addToWatchlist = () => {
     const sym = addSymbol.trim().toUpperCase();
     if (!sym) return;
-    if (watchlist.some(w => w.symbol === sym && w.assetType === addAssetType)) return;
+    if (watchlist.some(w => w.symbol === sym && w.assetType === addAssetType)) {
+      setAddError(`${sym} is already in your watchlist`);
+      return;
+    }
     setWatchlist(prev => [...prev, { symbol: sym, assetType: addAssetType, timeframe: addTimeframe }]);
     setAddSymbol("");
+    setAddError("");
   };
 
   const removeFromWatchlist = (symbol, assetType) => {
@@ -541,7 +546,12 @@ function WatchlistPage({ watchlist, setWatchlist, sortCol, sortDir, onSort, sele
         <div className="flex gap-2 flex-wrap">
           <input
             value={addSymbol}
-            onChange={e => setAddSymbol(e.target.value.toUpperCase())}
+            onChange={e => {
+              const val = e.target.value.toUpperCase();
+              setAddSymbol(val);
+              setAddAssetType(detectAssetType(val));
+              setAddError("");
+            }}
             onKeyDown={e => e.key === "Enter" && addToWatchlist()}
             placeholder="e.g. NVDA, BTCUSDT, EURUSD"
             className="flex-1 min-w-48 bg-dark-700 border border-dark-500 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
@@ -560,6 +570,7 @@ function WatchlistPage({ watchlist, setWatchlist, sortCol, sortDir, onSort, sele
             <Plus size={14} /> Add
           </button>
         </div>
+        {addError && <p className="text-xs text-red-400 mt-2">{addError}</p>}
 
         {/* Watchlist chips */}
         {watchlist.length > 0 && (
