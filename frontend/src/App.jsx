@@ -586,7 +586,7 @@ function SearchBar({ onResult }) {
           <Search size={14} className="ml-3 text-gray-500 flex-shrink-0" />
           <input
             value={query}
-            onChange={e => onInputChange(e.target.value)}
+            onChange={e => { setQuery(e.target.value); setError(""); setResolvedSymbol(""); }}
             onKeyDown={onKeyDown}
             placeholder="Search symbol or name..."
             className="bg-transparent px-2 py-2 text-sm text-white placeholder-gray-500 focus:outline-none w-48"
