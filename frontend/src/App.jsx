@@ -3,10 +3,58 @@ import { RefreshCw, TrendingUp, TrendingDown, Minus, Wifi, WifiOff, AlertCircle,
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "";
 const WS_BASE = API_BASE.replace(/^https/, "wss").replace(/^http/, "ws");
+const SCAN_INTERVAL_SEC = 300;
 
 const TIMEFRAMES = ["15m", "30m", "1h"];
 const ASSET_FILTERS = ["all", "stock", "crypto", "forex"];
 const DIRECTION_FILTERS = ["all", "BUY", "SELL", "WAIT"];
+
+const TF_TV = { "15m": "15", "30m": "30", "1h": "60" };
+
+const TV_SYMBOL_MAP = {
+  XAUUSD: "TVC:GOLD", XAGUSD: "TVC:SILVER",
+  US30: "TVC:DJI", US500: "SP:SPX", NAS100: "NASDAQ:NDX",
+  GER40: "TVC:DEU40", USOIL: "TVC:USOIL", UKOIL: "TVC:UKOIL",
+  EURUSD: "FX:EURUSD", GBPUSD: "FX:GBPUSD", USDJPY: "FX:USDJPY",
+  AUDUSD: "FX:AUDUSD", USDCAD: "FX:USDCAD", USDCHF: "FX:USDCHF",
+  NZDUSD: "FX:NZDUSD", GBPJPY: "FX:GBPJPY", EURJPY: "FX:EURJPY",
+  EURGBP: "FX:EURGBP",
+};
+
+function toTVSymbol(symbol, assetType) {
+  if (TV_SYMBOL_MAP[symbol]) return TV_SYMBOL_MAP[symbol];
+  if (assetType === "crypto") return `BINANCE:${symbol}`;
+  return symbol;
+}
+
+function TradingViewChart({ symbol, assetType, timeframe }) {
+  const tvSymbol = toTVSymbol(symbol, assetType);
+  const interval = TF_TV[timeframe] || "15";
+  const src = `https://www.tradingview.com/widgetembed/?symbol=${encodeURIComponent(tvSymbol)}&interval=${interval}&theme=dark&style=1&locale=en&hide_side_toolbar=1&allow_symbol_change=0&save_image=0&calendar=0&hide_volume=0`;
+  return (
+    <div className="w-full h-64 rounded-lg overflow-hidden border border-dark-600 mb-4">
+      <iframe src={src} width="100%" height="100%" frameBorder="0" allowTransparency="true" scrolling="no" />
+    </div>
+  );
+}
+
+function useCountdown(lastScan) {
+  const [seconds, setSeconds] = useState(null);
+  useEffect(() => {
+    if (!lastScan) return;
+    const calc = () => {
+      const elapsed = Math.floor((Date.now() - new Date(lastScan).getTime()) / 1000);
+      return Math.max(0, SCAN_INTERVAL_SEC - elapsed);
+    };
+    setSeconds(calc());
+    const id = setInterval(() => setSeconds(calc()), 1000);
+    return () => clearInterval(id);
+  }, [lastScan]);
+  if (seconds === null) return null;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
 
 const COLUMNS = [
   { label: "Symbol",      key: "symbol" },
@@ -87,8 +135,9 @@ function SignalRow({ signal, onClick, selected }) {
 function SignalDetail({ signal, onClose }) {
   if (!signal) return null;
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-lg w-full mx-4" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-3xl w-full mx-auto my-auto" onClick={e => e.stopPropagation()}>
+        <TradingViewChart symbol={signal.symbol} assetType={signal.asset_type} timeframe={signal.timeframe} />
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-xl font-bold text-white">{signal.symbol}</h2>
@@ -156,6 +205,7 @@ export default function App() {
   const [sortDir, setSortDir] = useState("desc");
   const wsRef = useRef(null);
   const timeframeRef = useRef(timeframe);
+  const countdown = useCountdown(lastScan);
 
   useEffect(() => {
     timeframeRef.current = timeframe;
@@ -260,9 +310,14 @@ export default function App() {
               {wsStatus === "connected" ? "Live" : "Reconnecting..."}
             </div>
             {lastScan && (
-              <span className="text-xs text-gray-500">
-                Last scan: {new Date(lastScan).toLocaleTimeString()}
-              </span>
+              <div className="text-xs text-gray-500 text-right">
+                <div>Last scan: {new Date(lastScan).toLocaleTimeString()}</div>
+                {countdown !== null && (
+                  <div className={countdown === "0:00" ? "text-blue-400 animate-pulse" : "text-gray-500"}>
+                    Next scan in {countdown === "0:00" ? "scanning..." : countdown}
+                  </div>
+                )}
+              </div>
             )}
             <button
               onClick={triggerScan}
