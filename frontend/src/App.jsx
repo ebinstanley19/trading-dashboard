@@ -1013,6 +1013,13 @@ export default function App() {
                 )}
               </div>
             )}
+            <a
+              href="https://paypal.me/ebinstanley19"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-yellow-500/40 text-yellow-400 hover:bg-yellow-500/10 transition-colors"
+              title="Support this project"
+            >☕ Donate</a>
             <button
               onClick={() => setShowHelp(true)}
               className="flex items-center justify-center w-8 h-8 rounded-full border border-dark-500 text-gray-400 hover:text-white hover:border-gray-400 text-sm font-bold transition-colors"
