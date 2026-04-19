@@ -12,7 +12,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from .scanner import run_scan, get_cached_signals, scan_watchlist_symbols, _scan_asset
-from .data_feeds import fetch_stock_price, fetch_crypto_price, fetch_forex_price, fetch_options_suggestion
+from .data_feeds import fetch_stock_price, fetch_crypto_price, fetch_forex_price, fetch_options_suggestion, backtest_symbol
 
 load_dotenv()
 
@@ -124,6 +124,14 @@ async def scan_single(request: Request, symbol: str, asset_type: str, timeframe:
 async def get_options(request: Request, symbol: str, direction: str = "BUY", price: float = 0):
     result = await fetch_options_suggestion(symbol.upper(), direction, price)
     return {"option": result}
+
+
+@app.get("/api/backtest/{symbol}")
+@limiter.limit("5/minute")
+async def get_backtest(request: Request, symbol: str, asset_type: str = "stock",
+                       timeframe: str = "15m", min_score: float = 60, lookahead: int = 4):
+    result = await backtest_symbol(symbol.upper(), asset_type, timeframe, min_score, lookahead)
+    return {"backtest": result}
 
 
 @app.post("/api/scan/watchlist")

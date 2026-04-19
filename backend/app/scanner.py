@@ -1,6 +1,6 @@
 import asyncio
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from .data_feeds import (
     TOP_US_STOCKS, TOP_CRYPTO, TOP_FOREX,
@@ -10,6 +10,15 @@ from .signal_engine import analyze, Signal
 
 # Keyed by timeframe -> (signals, scan_time)
 _cache: dict[str, tuple[list[dict], str]] = {}
+
+_alert_sent: dict[tuple[str, str], datetime] = {}
+_ALERT_MIN_SCORE = 75
+_ALERT_COOLDOWN_HOURS = 4
+
+
+def _score_bar(score: float, n: int = 10) -> str:
+    filled = round(score / 100 * n)
+    return "█" * filled + "░" * (n - filled)
 
 
 async def _scan_asset(symbol: str, asset_type: str, timeframe: str) -> Signal | None:
@@ -47,7 +56,19 @@ async def run_scan(timeframe: str = "15m", telegram_token: str = "", telegram_ch
     _cache[timeframe] = ([asdict(s) for s in signals], scan_time)
 
     if telegram_token and telegram_chat:
-        await _send_telegram(top[:5], telegram_token, telegram_chat)
+        now = datetime.now(timezone.utc)
+        cutoff = now - timedelta(hours=_ALERT_COOLDOWN_HOURS)
+        _alert_sent.update({k: v for k, v in list(_alert_sent.items()) if v > cutoff})
+        # prune expired
+        for k in [k for k, v in _alert_sent.items() if v <= cutoff]:
+            del _alert_sent[k]
+        to_alert = []
+        for s in top:
+            if s.score >= _ALERT_MIN_SCORE and (s.symbol, s.direction) not in _alert_sent:
+                to_alert.append(s)
+                _alert_sent[(s.symbol, s.direction)] = now
+        if to_alert:
+            await _send_telegram(to_alert, telegram_token, telegram_chat)
 
     return _cache[timeframe][0]
 
@@ -61,7 +82,7 @@ async def _send_telegram(signals: list[Signal], token: str, chat_id: str):
         emoji = "🟢" if s.direction == "BUY" else "🔴"
         lines.append(
             f"{emoji} *{s.symbol}* ({s.asset_type.upper()}) — *{s.direction}*\n"
-            f"  Score: `{s.score}/100` | TF: `{s.timeframe}`\n"
+            f"  Score: `{_score_bar(s.score)} {int(s.score)}/100` | TF: `{s.timeframe}`\n"
             f"  Entry: `{s.entry}` | SL: `{s.stop_loss}` | TP: `{s.take_profit}`\n"
             f"  RSI: `{s.rsi}` | Trend: `{s.ema_trend}`\n"
             f"  Reasons: _{', '.join(s.reasons)}_\n"

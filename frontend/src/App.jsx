@@ -6,9 +6,9 @@ const WS_BASE = API_BASE.replace(/^https/, "wss").replace(/^http/, "ws");
 const SCAN_INTERVAL_SEC = 300;
 
 const TIMEFRAMES = ["15m", "30m", "1h"];
-const ASSET_FILTERS = ["all", "stock", "crypto", "forex"];
+const ASSET_FILTERS = ["ALL", "STOCK", "CRYPTO", "FOREX"];
 const ASSET_TYPES = ["stock", "crypto", "forex"];
-const DIRECTION_FILTERS = ["all", "BUY", "SELL", "WAIT"];
+const DIRECTION_FILTERS = ["ALL", "BUY", "SELL", "WAIT"];
 
 const SYMBOL_LIST = [
   // Stocks
@@ -284,16 +284,32 @@ function SignalDetail({ signal, onClose, watchlist, onToggleWatchlist }) {
   const inWatchlist = watchlist.some(w => w.symbol === signal.symbol && w.assetType === signal.asset_type);
   const [optionsData, setOptionsData] = useState(null);
   const [optionsLoading, setOptionsLoading] = useState(false);
+  const [backtestData, setBacktestData] = useState(null);
+  const [backtestLoading, setBacktestLoading] = useState(false);
+  const [backtestLoaded, setBacktestLoaded] = useState(false);
 
   useEffect(() => {
-    if (signal.asset_type !== "stock" || signal.direction === "WAIT") return;
     setOptionsData(null);
+    setOptionsLoading(false);
+    setBacktestData(null);
+    setBacktestLoading(false);
+    setBacktestLoaded(false);
+    if (signal.asset_type !== "stock" || signal.direction === "WAIT") return;
     setOptionsLoading(true);
     fetch(`${API_BASE}/api/options/${signal.symbol}?direction=${signal.direction}&price=${signal.entry}`)
       .then(r => r.json())
       .then(d => { setOptionsData(d.option); setOptionsLoading(false); })
       .catch(() => setOptionsLoading(false));
   }, [signal.symbol, signal.direction, signal.entry]);
+
+  const loadBacktest = () => {
+    if (backtestLoaded || backtestLoading) return;
+    setBacktestLoading(true);
+    fetch(`${API_BASE}/api/backtest/${signal.symbol}?asset_type=${signal.asset_type}&timeframe=${signal.timeframe}&min_score=60`)
+      .then(r => r.json())
+      .then(d => { setBacktestData(d.backtest); setBacktestLoading(false); setBacktestLoaded(true); })
+      .catch(() => { setBacktestLoading(false); setBacktestLoaded(true); });
+  };
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto" onClick={onClose}>
       <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-3xl w-full mx-auto my-auto" onClick={e => e.stopPropagation()}>
@@ -303,13 +319,21 @@ function SignalDetail({ signal, onClose, watchlist, onToggleWatchlist }) {
             <h2 className="text-xl font-bold text-white">{signal.symbol}</h2>
             <span className="text-sm text-gray-400 capitalize">{signal.asset_type} · {signal.timeframe}</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={loadBacktest}
+              disabled={backtestLoading || signal.asset_type === "forex"}
+              title={signal.asset_type === "forex" ? "Backtesting not supported for forex" : "Run historical backtest"}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors bg-dark-600 text-gray-400 hover:text-white border border-dark-500 disabled:opacity-40"
+            >
+              {backtestLoading ? <RefreshCw size={12} className="animate-spin" /> : "📊 Backtest"}
+            </button>
             <button
               onClick={() => onToggleWatchlist(signal)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${inWatchlist ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 hover:bg-yellow-500/30" : "bg-dark-600 text-gray-400 hover:text-white border border-dark-500"}`}
             >
               {inWatchlist ? <StarOff size={12} /> : <Star size={12} />}
-              {inWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
+              {inWatchlist ? "Remove" : "Watchlist"}
             </button>
             <DirectionBadge direction={signal.direction} />
           </div>
@@ -349,6 +373,34 @@ function SignalDetail({ signal, onClose, watchlist, onToggleWatchlist }) {
             ))}
           </ul>
         </div>
+        {backtestLoaded && backtestData && (
+          <div className="bg-dark-700 rounded-lg p-3 mt-3">
+            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2.5">
+              📊 Backtest — {backtestData.timeframe} · {backtestData.bars_analyzed} bars
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              {(() => {
+                const wr = backtestData.win_rate;
+                const wrColor = wr === null ? "text-gray-400" : wr >= 55 ? "text-green-400" : wr >= 45 ? "text-yellow-400" : "text-red-400";
+                return [
+                  { label: "Win Rate", value: wr !== null ? `${wr}%` : "—", sub: `${backtestData.signal_count} signals`, color: wrColor },
+                  { label: "Avg Win", value: `+${backtestData.avg_win_pct}%`, sub: "", color: "text-green-400" },
+                  { label: "Avg Loss", value: `-${backtestData.avg_loss_pct}%`, sub: "", color: "text-red-400" },
+                  { label: "Lookahead", value: backtestData.lookahead_label, sub: "", color: "text-gray-300" },
+                ].map(({ label, value, sub, color }) => (
+                  <div key={label} className="bg-dark-600 rounded-lg p-2 text-center">
+                    <div className="text-gray-500 mb-1">{label}</div>
+                    <div className={`font-semibold ${color}`}>{value}</div>
+                    {sub && <div className="text-gray-600 mt-0.5">{sub}</div>}
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+        )}
+        {backtestLoaded && !backtestData && (
+          <div className="bg-dark-700 rounded-lg p-3 mt-3 text-xs text-gray-500">Not enough historical data to run a backtest for this symbol.</div>
+        )}
         {signal.asset_type === "stock" && signal.direction !== "WAIT" && (
           <div className="bg-dark-700 rounded-lg p-3 mt-3">
             <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
@@ -378,6 +430,19 @@ function SignalDetail({ signal, onClose, watchlist, onToggleWatchlist }) {
                     </div>
                   ))}
                 </div>
+                {optionsData.iv_vs_hv && optionsData.iv_vs_hv !== "NORMAL" && (
+                  <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium ${optionsData.iv_vs_hv === "HIGH" ? "bg-red-500/10 border border-red-500/20 text-red-400" : "bg-green-500/10 border border-green-500/20 text-green-400"}`}>
+                    {optionsData.iv_vs_hv === "HIGH"
+                      ? "📈 IV HIGH vs historical — options are expensive, consider a spread instead of a naked call/put"
+                      : "📉 IV LOW vs historical — options are cheap, good time to buy outright"}
+                    {optionsData.hv && <span className="ml-auto text-gray-500">HV {optionsData.hv}%</span>}
+                  </div>
+                )}
+                {optionsData.earnings_warning && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-yellow-500/10 border border-yellow-500/30 text-yellow-300">
+                    ⚠️ Earnings date <strong>{optionsData.earnings_date}</strong> falls within this option's expiry window — IV may spike before and crash after the announcement.
+                  </div>
+                )}
                 <div className="text-xs text-gray-500">
                   Bid ${optionsData.bid} · Ask ${optionsData.ask} · <span className="text-yellow-400">Max loss = premium paid (${optionsData.cost_per_contract || "—"})</span>
                 </div>
