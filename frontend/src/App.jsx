@@ -546,10 +546,16 @@ async function fetchCryptoSuggestions(q) {
   }
 }
 
+const FOREX_SYMBOLS = new Set(SYMBOL_LIST.filter(s => s.assetType === "forex").map(s => s.symbol));
+
+function detectAssetType(sym) {
+  if (sym.endsWith("USDT") || sym.endsWith("BTC") || sym.endsWith("ETH")) return "crypto";
+  if (FOREX_SYMBOLS.has(sym)) return "forex";
+  return "stock";
+}
+
 function SearchModal({ onResult, onClose }) {
   const [query, setQuery] = useState("");
-  const [assetType, setAssetType] = useState("stock");
-  const [timeframe, setTimeframe] = useState("15m");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [suggestions, setSuggestions] = useState([]);
@@ -577,12 +583,12 @@ function SearchModal({ onResult, onClose }) {
     return () => clearTimeout(debounceRef.current);
   }, [query]);
 
-  const doSearch = async (sym, type, tf) => {
+  const doSearch = async (sym, type) => {
     setLoading(true);
     setError("");
     setSuggestions([]);
     try {
-      const res = await fetch(`${API_BASE}/api/scan/symbol?symbol=${sym}&asset_type=${type}&timeframe=${tf}`, { method: "POST" });
+      const res = await fetch(`${API_BASE}/api/scan/symbol?symbol=${sym}&asset_type=${type}&timeframe=15m`, { method: "POST" });
       const data = await res.json();
       if (data.signal) { onResult(data.signal); onClose(); }
       else { setError(`No signal found for ${sym}`); setLoading(false); }
@@ -592,17 +598,14 @@ function SearchModal({ onResult, onClose }) {
     }
   };
 
-  const selectSuggestion = (s) => {
-    setAssetType(s.assetType);
-    doSearch(s.symbol, s.assetType, timeframe);
-  };
+  const selectSuggestion = (s) => doSearch(s.symbol, s.assetType);
 
   const onKeyDown = (e) => {
     if (e.key === "ArrowDown") { e.preventDefault(); setHighlighted(h => Math.min(h + 1, suggestions.length - 1)); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setHighlighted(h => Math.max(h - 1, 0)); }
     else if (e.key === "Enter") {
       if (highlighted >= 0 && suggestions[highlighted]) selectSuggestion(suggestions[highlighted]);
-      else doSearch(query.trim().split(/[\s—]/)[0].toUpperCase(), assetType, timeframe);
+      else { const sym = query.trim().split(/[\s—]/)[0].toUpperCase(); doSearch(sym, detectAssetType(sym)); }
     }
     else if (e.key === "Escape") onClose();
   };
@@ -647,20 +650,11 @@ function SearchModal({ onResult, onClose }) {
 
         {error && <div className="px-5 py-3 text-sm text-red-400 border-t border-dark-600">{error}</div>}
 
-        <div className="flex items-center gap-3 px-5 py-3.5 border-t border-dark-600 flex-wrap">
-          <select value={assetType} onChange={e => setAssetType(e.target.value)} className="bg-dark-700 border border-dark-600 rounded-lg px-2.5 py-1.5 text-xs text-gray-300 focus:outline-none">
-            {ASSET_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <select value={timeframe} onChange={e => setTimeframe(e.target.value)} className="bg-dark-700 border border-dark-600 rounded-lg px-2.5 py-1.5 text-xs text-gray-300 focus:outline-none">
-            {TIMEFRAMES.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <span className="text-xs text-gray-600 flex-1">Type exact ticker + Enter, or pick from suggestions above</span>
-          <button
-            onClick={() => doSearch(query.trim().split(/[\s—]/)[0].toUpperCase(), assetType, timeframe)}
-            disabled={loading || !query.trim()}
-            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-lg text-xs font-medium transition-colors"
-          >Search</button>
-        </div>
+        {!suggestions.length && !error && (
+          <div className="px-5 py-3 text-xs text-gray-600 border-t border-dark-600">
+            Type a name or ticker and press Enter — or pick from the list above
+          </div>
+        )}
       </div>
     </div>
   );
