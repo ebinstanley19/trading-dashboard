@@ -4,13 +4,19 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from .scanner import run_scan, get_cached_signals, scan_watchlist_symbols, _scan_asset
 from .data_feeds import fetch_stock_price, fetch_crypto_price, fetch_forex_price
 
 load_dotenv()
+
+limiter = Limiter(key_func=get_remote_address)
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT = os.getenv("TELEGRAM_CHAT_ID", "")
@@ -25,6 +31,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Trading Signal Dashboard", lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -74,7 +82,8 @@ async def health():
 
 
 @app.get("/api/signals")
-async def get_signals(timeframe: str = "15m"):
+@limiter.limit("30/minute")
+async def get_signals(request: Request, timeframe: str = "15m"):
     signals, scan_time = get_cached_signals(timeframe)
     if not signals:
         signals = await run_scan(timeframe, TELEGRAM_TOKEN, TELEGRAM_CHAT)
@@ -83,14 +92,16 @@ async def get_signals(timeframe: str = "15m"):
 
 
 @app.post("/api/scan")
-async def trigger_scan(timeframe: str = "15m"):
+@limiter.limit("2/minute")
+async def trigger_scan(request: Request, timeframe: str = "15m"):
     signals = await run_scan(timeframe, TELEGRAM_TOKEN, TELEGRAM_CHAT)
     _, scan_time = get_cached_signals(timeframe)
     return {"signals": signals, "last_scan": scan_time}
 
 
 @app.get("/api/price/{asset_type}/{symbol}")
-async def get_price(asset_type: str, symbol: str):
+@limiter.limit("20/minute")
+async def get_price(request: Request, asset_type: str, symbol: str):
     if asset_type == "stock":
         price = await fetch_stock_price(symbol)
     elif asset_type == "crypto":
@@ -101,14 +112,16 @@ async def get_price(asset_type: str, symbol: str):
 
 
 @app.post("/api/scan/symbol")
-async def scan_single(symbol: str, asset_type: str, timeframe: str = "15m"):
+@limiter.limit("10/minute")
+async def scan_single(request: Request, symbol: str, asset_type: str, timeframe: str = "15m"):
     from dataclasses import asdict
     signal = await _scan_asset(symbol.upper(), asset_type, timeframe)
     return {"signal": asdict(signal) if signal else None}
 
 
 @app.post("/api/scan/watchlist")
-async def scan_watchlist_endpoint(body: dict):
+@limiter.limit("5/minute")
+async def scan_watchlist_endpoint(request: Request, body: dict):
     signals = await scan_watchlist_symbols(body.get("symbols", []), body.get("timeframe", "15m"))
     return {"signals": signals, "scan_time": datetime.now(timezone.utc).isoformat()}
 
