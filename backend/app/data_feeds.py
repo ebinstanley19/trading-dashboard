@@ -52,6 +52,7 @@ _FOREX_YF_MAP = {
 }
 
 _BINANCE_SEM: tuple | None = None  # (loop, semaphore) — recreated if loop changes
+_YF_SEM: tuple | None = None
 
 
 def _binance_sem() -> asyncio.Semaphore:
@@ -60,6 +61,14 @@ def _binance_sem() -> asyncio.Semaphore:
     if _BINANCE_SEM is None or _BINANCE_SEM[0] is not loop:
         _BINANCE_SEM = (loop, asyncio.Semaphore(5))  # max 5 concurrent Binance requests
     return _BINANCE_SEM[1]
+
+
+def _yf_sem() -> asyncio.Semaphore:
+    global _YF_SEM
+    loop = asyncio.get_event_loop()
+    if _YF_SEM is None or _YF_SEM[0] is not loop:
+        _YF_SEM = (loop, asyncio.Semaphore(5))  # max 5 concurrent yfinance threads
+    return _YF_SEM[1]
 
 
 _TF_MAP_YF = {
@@ -94,11 +103,12 @@ def _normalize_yf_df(df: pd.DataFrame) -> pd.DataFrame | None:
 async def fetch_stock_candles(symbol: str, timeframe: str = "15m") -> pd.DataFrame | None:
     period, interval = _TF_MAP_YF.get(timeframe, ("5d", "15m"))
     try:
-        loop = asyncio.get_event_loop()
-        df = await loop.run_in_executor(
-            None,
-            lambda: yf.download(symbol, period=period, interval=interval, progress=False, auto_adjust=True),
-        )
+        async with _yf_sem():
+            loop = asyncio.get_event_loop()
+            df = await loop.run_in_executor(
+                None,
+                lambda: yf.download(symbol, period=period, interval=interval, progress=False, auto_adjust=True),
+            )
         return _normalize_yf_df(df)
     except Exception:
         return None
@@ -110,11 +120,12 @@ async def fetch_forex_candles(symbol: str, timeframe: str = "15m") -> pd.DataFra
         return None
     period, interval = _TF_MAP_YF.get(timeframe, ("5d", "15m"))
     try:
-        loop = asyncio.get_event_loop()
-        df = await loop.run_in_executor(
-            None,
-            lambda: yf.download(yf_symbol, period=period, interval=interval, progress=False, auto_adjust=True),
-        )
+        async with _yf_sem():
+            loop = asyncio.get_event_loop()
+            df = await loop.run_in_executor(
+                None,
+                lambda: yf.download(yf_symbol, period=period, interval=interval, progress=False, auto_adjust=True),
+            )
         return _normalize_yf_df(df)
     except Exception:
         return None
