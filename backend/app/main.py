@@ -67,6 +67,11 @@ async def _broadcast(message: dict):
         _ws_clients.remove(ws)
 
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
 @app.get("/api/signals")
 async def get_signals(timeframe: str = "15m"):
     signals, scan_time = get_cached_signals(timeframe)
