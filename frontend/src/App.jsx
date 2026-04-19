@@ -10,6 +10,100 @@ const ASSET_FILTERS = ["all", "stock", "crypto", "forex"];
 const ASSET_TYPES = ["stock", "crypto", "forex"];
 const DIRECTION_FILTERS = ["all", "BUY", "SELL", "WAIT"];
 
+const SYMBOL_LIST = [
+  // Stocks
+  { symbol: "AAPL",  assetType: "stock",  label: "Apple" },
+  { symbol: "MSFT",  assetType: "stock",  label: "Microsoft" },
+  { symbol: "NVDA",  assetType: "stock",  label: "Nvidia" },
+  { symbol: "TSLA",  assetType: "stock",  label: "Tesla" },
+  { symbol: "AMZN",  assetType: "stock",  label: "Amazon" },
+  { symbol: "META",  assetType: "stock",  label: "Meta" },
+  { symbol: "GOOGL", assetType: "stock",  label: "Google" },
+  { symbol: "AMD",   assetType: "stock",  label: "AMD" },
+  { symbol: "PLTR",  assetType: "stock",  label: "Palantir" },
+  { symbol: "INTC",  assetType: "stock",  label: "Intel" },
+  { symbol: "BAC",   assetType: "stock",  label: "Bank of America" },
+  { symbol: "F",     assetType: "stock",  label: "Ford" },
+  { symbol: "SOFI",  assetType: "stock",  label: "SoFi" },
+  { symbol: "RIVN",  assetType: "stock",  label: "Rivian" },
+  { symbol: "LCID",  assetType: "stock",  label: "Lucid Motors" },
+  { symbol: "NIO",   assetType: "stock",  label: "NIO" },
+  { symbol: "SNAP",  assetType: "stock",  label: "Snapchat" },
+  { symbol: "UBER",  assetType: "stock",  label: "Uber" },
+  { symbol: "LYFT",  assetType: "stock",  label: "Lyft" },
+  { symbol: "HOOD",  assetType: "stock",  label: "Robinhood" },
+  { symbol: "COIN",  assetType: "stock",  label: "Coinbase" },
+  { symbol: "MARA",  assetType: "stock",  label: "Marathon Digital" },
+  { symbol: "RIOT",  assetType: "stock",  label: "Riot Platforms" },
+  { symbol: "CLSK",  assetType: "stock",  label: "CleanSpark" },
+  { symbol: "MSTR",  assetType: "stock",  label: "MicroStrategy" },
+  { symbol: "GME",   assetType: "stock",  label: "GameStop" },
+  { symbol: "AMC",   assetType: "stock",  label: "AMC Entertainment" },
+  { symbol: "SPY",   assetType: "stock",  label: "S&P 500 ETF" },
+  { symbol: "QQQ",   assetType: "stock",  label: "Nasdaq ETF" },
+  { symbol: "IWM",   assetType: "stock",  label: "Russell 2000 ETF" },
+  { symbol: "XLF",   assetType: "stock",  label: "Financials ETF" },
+  { symbol: "ARKK",  assetType: "stock",  label: "ARK Innovation ETF" },
+  { symbol: "BABA",  assetType: "stock",  label: "Alibaba" },
+  { symbol: "JD",    assetType: "stock",  label: "JD.com" },
+  { symbol: "PDD",   assetType: "stock",  label: "Pinduoduo" },
+  { symbol: "XPEV",  assetType: "stock",  label: "XPeng" },
+  { symbol: "LI",    assetType: "stock",  label: "Li Auto" },
+  { symbol: "NFLX",  assetType: "stock",  label: "Netflix" },
+  { symbol: "DIS",   assetType: "stock",  label: "Disney" },
+  { symbol: "PYPL",  assetType: "stock",  label: "PayPal" },
+  { symbol: "XYZ",   assetType: "stock",  label: "Block (fmr Square)" },
+  { symbol: "SHOP",  assetType: "stock",  label: "Shopify" },
+  { symbol: "ZM",    assetType: "stock",  label: "Zoom" },
+  { symbol: "RBLX",  assetType: "stock",  label: "Roblox" },
+  { symbol: "DKNG",  assetType: "stock",  label: "DraftKings" },
+  { symbol: "PENN",  assetType: "stock",  label: "Penn Entertainment" },
+  { symbol: "ABNB",  assetType: "stock",  label: "Airbnb" },
+  { symbol: "DASH",  assetType: "stock",  label: "DoorDash" },
+  { symbol: "SPOT",  assetType: "stock",  label: "Spotify" },
+  { symbol: "TWLO",  assetType: "stock",  label: "Twilio" },
+  // Crypto
+  { symbol: "BTCUSDT",  assetType: "crypto", label: "Bitcoin" },
+  { symbol: "ETHUSDT",  assetType: "crypto", label: "Ethereum" },
+  { symbol: "BNBUSDT",  assetType: "crypto", label: "BNB" },
+  { symbol: "SOLUSDT",  assetType: "crypto", label: "Solana" },
+  { symbol: "XRPUSDT",  assetType: "crypto", label: "XRP / Ripple" },
+  { symbol: "ADAUSDT",  assetType: "crypto", label: "Cardano" },
+  { symbol: "DOGEUSDT", assetType: "crypto", label: "Dogecoin" },
+  { symbol: "AVAXUSDT", assetType: "crypto", label: "Avalanche" },
+  { symbol: "DOTUSDT",  assetType: "crypto", label: "Polkadot" },
+  { symbol: "MATICUSDT",assetType: "crypto", label: "Polygon / Matic" },
+  { symbol: "LINKUSDT", assetType: "crypto", label: "Chainlink" },
+  { symbol: "UNIUSDT",  assetType: "crypto", label: "Uniswap" },
+  { symbol: "ATOMUSDT", assetType: "crypto", label: "Cosmos" },
+  { symbol: "LTCUSDT",  assetType: "crypto", label: "Litecoin" },
+  { symbol: "ETCUSDT",  assetType: "crypto", label: "Ethereum Classic" },
+  { symbol: "XLMUSDT",  assetType: "crypto", label: "Stellar" },
+  { symbol: "ALGOUSDT", assetType: "crypto", label: "Algorand" },
+  { symbol: "NEARUSDT", assetType: "crypto", label: "NEAR Protocol" },
+  { symbol: "FTMUSDT",  assetType: "crypto", label: "Fantom" },
+  { symbol: "ARBUSDT",  assetType: "crypto", label: "Arbitrum" },
+  // Forex & CFDs
+  { symbol: "EURUSD", assetType: "forex", label: "Euro / US Dollar" },
+  { symbol: "GBPUSD", assetType: "forex", label: "British Pound / USD" },
+  { symbol: "USDJPY", assetType: "forex", label: "USD / Japanese Yen" },
+  { symbol: "AUDUSD", assetType: "forex", label: "Australian Dollar / USD" },
+  { symbol: "USDCAD", assetType: "forex", label: "USD / Canadian Dollar" },
+  { symbol: "USDCHF", assetType: "forex", label: "USD / Swiss Franc" },
+  { symbol: "NZDUSD", assetType: "forex", label: "New Zealand Dollar / USD" },
+  { symbol: "GBPJPY", assetType: "forex", label: "British Pound / JPY" },
+  { symbol: "EURJPY", assetType: "forex", label: "Euro / JPY" },
+  { symbol: "EURGBP", assetType: "forex", label: "Euro / British Pound" },
+  { symbol: "XAUUSD", assetType: "forex", label: "Gold" },
+  { symbol: "XAGUSD", assetType: "forex", label: "Silver" },
+  { symbol: "US30",   assetType: "forex", label: "Dow Jones 30" },
+  { symbol: "US500",  assetType: "forex", label: "S&P 500 Index" },
+  { symbol: "NAS100", assetType: "forex", label: "Nasdaq 100 Index" },
+  { symbol: "GER40",  assetType: "forex", label: "DAX 40 / Germany" },
+  { symbol: "USOIL",  assetType: "forex", label: "Crude Oil (WTI)" },
+  { symbol: "UKOIL",  assetType: "forex", label: "Brent Oil" },
+];
+
 const TF_TV = { "15m": "15", "30m": "30", "1h": "60" };
 
 const TV_SYMBOL_MAP = {
@@ -390,27 +484,70 @@ function WatchlistPage({ watchlist, setWatchlist, sortCol, sortDir, onSort, sele
 }
 
 function SearchBar({ onResult }) {
-  const [symbol, setSymbol] = useState("");
+  const [query, setQuery] = useState("");
   const [assetType, setAssetType] = useState("stock");
   const [timeframe, setTimeframe] = useState("15m");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [highlighted, setHighlighted] = useState(-1);
+  const [resolvedSymbol, setResolvedSymbol] = useState("");
+  const wrapperRef = useRef(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handler = e => { if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setSuggestions([]); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const onInputChange = (value) => {
+    setQuery(value);
+    setResolvedSymbol("");
+    setError("");
+    const q = value.trim().toLowerCase();
+    if (!q) { setSuggestions([]); return; }
+    const matches = SYMBOL_LIST.filter(s =>
+      s.symbol.toLowerCase().includes(q) || s.label.toLowerCase().includes(q)
+    ).slice(0, 8);
+    setSuggestions(matches);
+    setHighlighted(-1);
+  };
+
+  const selectSuggestion = (s) => {
+    setQuery(`${s.symbol} — ${s.label}`);
+    setResolvedSymbol(s.symbol);
+    setAssetType(s.assetType);
+    setSuggestions([]);
+  };
+
+  const onKeyDown = (e) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); setHighlighted(h => Math.min(h + 1, suggestions.length - 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setHighlighted(h => Math.max(h - 1, 0)); }
+    else if (e.key === "Enter") {
+      if (highlighted >= 0 && suggestions[highlighted]) selectSuggestion(suggestions[highlighted]);
+      else search();
+    }
+    else if (e.key === "Escape") setSuggestions([]);
+  };
 
   const search = async () => {
-    const sym = symbol.trim().toUpperCase();
+    const sym = (resolvedSymbol || query.trim().split(/[\s—]/)[0]).toUpperCase();
     if (!sym) return;
     setLoading(true);
     setError("");
+    setSuggestions([]);
     try {
       const res = await fetch(`${API_BASE}/api/scan/symbol?symbol=${sym}&asset_type=${assetType}&timeframe=${timeframe}`, { method: "POST" });
       const data = await res.json();
       if (data.signal) {
         onResult(data.signal);
-        setSymbol("");
+        setQuery("");
+        setResolvedSymbol("");
       } else {
-        setError("No data found for this symbol");
+        setError("No data found");
       }
-    } catch (e) {
+    } catch {
       setError("Search failed");
     } finally {
       setLoading(false);
@@ -418,34 +555,54 @@ function SearchBar({ onResult }) {
   };
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex items-center bg-dark-700 border border-dark-500 rounded-lg overflow-hidden focus-within:border-blue-500 transition-colors">
-        <Search size={14} className="ml-3 text-gray-500 flex-shrink-0" />
-        <input
-          value={symbol}
-          onChange={e => { setSymbol(e.target.value.toUpperCase()); setError(""); }}
-          onKeyDown={e => e.key === "Enter" && search()}
-          placeholder="Symbol..."
-          className="bg-transparent px-2 py-2 text-sm text-white placeholder-gray-500 focus:outline-none w-32"
-        />
-        <select
-          value={assetType}
-          onChange={e => setAssetType(e.target.value)}
-          className="bg-dark-600 border-l border-dark-500 px-2 py-2 text-xs text-gray-300 focus:outline-none"
-        >
-          {ASSET_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
-        <select
-          value={timeframe}
-          onChange={e => setTimeframe(e.target.value)}
-          className="bg-dark-600 border-l border-dark-500 px-2 py-2 text-xs text-gray-300 focus:outline-none"
-        >
-          {TIMEFRAMES.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
+    <div className="flex items-center gap-2" ref={wrapperRef}>
+      <div className="relative">
+        <div className="flex items-center bg-dark-700 border border-dark-500 rounded-lg overflow-hidden focus-within:border-blue-500 transition-colors">
+          <Search size={14} className="ml-3 text-gray-500 flex-shrink-0" />
+          <input
+            value={query}
+            onChange={e => onInputChange(e.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder="Search symbol or name..."
+            className="bg-transparent px-2 py-2 text-sm text-white placeholder-gray-500 focus:outline-none w-48"
+            autoComplete="off"
+          />
+          <select
+            value={assetType}
+            onChange={e => setAssetType(e.target.value)}
+            className="bg-dark-600 border-l border-dark-500 px-2 py-2 text-xs text-gray-300 focus:outline-none"
+          >
+            {ASSET_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <select
+            value={timeframe}
+            onChange={e => setTimeframe(e.target.value)}
+            className="bg-dark-600 border-l border-dark-500 px-2 py-2 text-xs text-gray-300 focus:outline-none"
+          >
+            {TIMEFRAMES.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        {suggestions.length > 0 && (
+          <ul className="absolute z-50 top-full mt-1 left-0 w-full bg-dark-700 border border-dark-500 rounded-lg overflow-hidden shadow-xl">
+            {suggestions.map((s, i) => (
+              <li
+                key={s.symbol}
+                onMouseDown={() => selectSuggestion(s)}
+                className={`flex items-center justify-between px-3 py-2 cursor-pointer text-sm ${i === highlighted ? "bg-blue-600" : "hover:bg-dark-600"}`}
+              >
+                <span className="font-mono font-semibold text-white">{s.symbol}</span>
+                <span className="text-gray-400 text-xs ml-2 truncate">{s.label}</span>
+                <span className={`ml-2 text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${s.assetType === "crypto" ? "bg-yellow-900 text-yellow-300" : s.assetType === "forex" ? "bg-purple-900 text-purple-300" : "bg-blue-900 text-blue-300"}`}>
+                  {s.assetType}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
       <button
         onClick={search}
-        disabled={loading || !symbol.trim()}
+        disabled={loading || !query.trim()}
         className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
       >
         {loading ? <RefreshCw size={14} className="animate-spin" /> : <Search size={14} />}
