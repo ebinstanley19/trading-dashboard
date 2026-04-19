@@ -734,6 +734,36 @@ function HelpModal({ onClose }) {
         </div>
         <div className="px-6 py-5 space-y-5 text-sm text-gray-300">
 
+          {/* Data freshness callout */}
+          <div className="rounded-lg border border-dark-500 overflow-hidden">
+            <div className="bg-dark-700 px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Data freshness — know before you trade</div>
+            <div className="divide-y divide-dark-700">
+              <div className="flex items-center justify-between px-3 py-2.5">
+                <div className="flex items-center gap-2"><span className="text-yellow-400 font-bold">Crypto</span><span className="text-xs text-gray-500">Binance</span></div>
+                <div className="text-right"><span className="text-green-400 font-medium text-xs">Near real-time</span><div className="text-gray-600 text-xs">Scans refresh every 5 min</div></div>
+              </div>
+              <div className="flex items-center justify-between px-3 py-2.5">
+                <div className="flex items-center gap-2"><span className="text-blue-400 font-bold">Stocks</span><span className="text-xs text-gray-500">yfinance</span></div>
+                <div className="text-right"><span className="text-yellow-400 font-medium text-xs">~15 min delayed</span><div className="text-gray-600 text-xs">Free data feed limitation</div></div>
+              </div>
+              <div className="flex items-center justify-between px-3 py-2.5">
+                <div className="flex items-center gap-2"><span className="text-purple-400 font-bold">Forex / CFDs</span><span className="text-xs text-gray-500">yfinance</span></div>
+                <div className="text-right"><span className="text-yellow-400 font-medium text-xs">~15 min delayed</span><div className="text-gray-600 text-xs">Free data feed limitation</div></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Best use cases */}
+          <div>
+            <p className="text-white font-semibold mb-2">What this app is actually good for</p>
+            <div className="space-y-2">
+              <div className="flex gap-2.5"><span className="text-green-400 flex-shrink-0 mt-0.5">✓</span><span><span className="text-white font-medium">Crypto day/swing trading</span> — near real-time data, signals refresh every 5 min. This works.</span></div>
+              <div className="flex gap-2.5"><span className="text-green-400 flex-shrink-0 mt-0.5">✓</span><span><span className="text-white font-medium">Stock swing trading</span> — holding for days or weeks. A 15-min delay doesn't matter if you're planning a multi-day trade.</span></div>
+              <div className="flex gap-2.5"><span className="text-green-400 flex-shrink-0 mt-0.5">✓</span><span><span className="text-white font-medium">End-of-day stock screening</span> — scan after market close, identify setups, enter the next morning.</span></div>
+              <div className="flex gap-2.5"><span className="text-red-400 flex-shrink-0 mt-0.5">✗</span><span><span className="text-white font-medium">Stock day trading</span> — the 15-min delay means the entry price you see may no longer be available. Don't use this for intraday stocks.</span></div>
+            </div>
+          </div>
+
           <div>
             <p className="text-white font-semibold mb-2">Step 1 — Find a setup</p>
             <p>On the <span className="text-blue-400">Live Scanner</span> tab, look for signals with a high <span className="text-white font-medium">Score</span> (aim for 65+). The higher the score, the more indicators agree.</p>
@@ -749,8 +779,8 @@ function HelpModal({ onClose }) {
           </div>
 
           <div>
-            <p className="text-white font-semibold mb-2">Step 3 — Click the signal to see the chart</p>
-            <p>Click any row to open the detail panel. Check that the chart actually looks like what the signal is saying before you act on it.</p>
+            <p className="text-white font-semibold mb-2">Step 3 — Always check the chart</p>
+            <p>Click any row to open the detail panel. <span className="text-white font-medium">Always look at the chart before acting</span> — does it actually look like the signal is saying? The app doesn't know about news, earnings, or macro events.</p>
           </div>
 
           <div>
@@ -782,7 +812,7 @@ function HelpModal({ onClose }) {
           </div>
 
           <div className="bg-yellow-900/30 border border-yellow-700/40 rounded-lg p-3 text-yellow-300 text-xs">
-            <span className="font-semibold">Remember:</span> This dashboard shows potential setups based on technical indicators. Always do your own research. Never risk money you can't afford to lose.
+            <span className="font-semibold">Remember:</span> This is a technical analysis screener — it knows nothing about news, earnings, or market events. Always apply your own judgment. Never risk money you can't afford to lose.
           </div>
 
         </div>
