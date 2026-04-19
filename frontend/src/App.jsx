@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { RefreshCw, TrendingUp, TrendingDown, Minus, Wifi, WifiOff, AlertCircle, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 
+const API_BASE = import.meta.env.VITE_API_URL ?? "";
+const WS_BASE = API_BASE.replace(/^https/, "wss").replace(/^http/, "ws");
+
 const TIMEFRAMES = ["15m", "30m", "1h"];
 const ASSET_FILTERS = ["all", "stock", "crypto", "forex"];
 const DIRECTION_FILTERS = ["all", "BUY", "SELL", "WAIT"];
@@ -161,7 +164,7 @@ export default function App() {
   const fetchSignals = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/signals?timeframe=${timeframe}`);
+      const res = await fetch(`${API_BASE}/api/signals?timeframe=${timeframe}`);
       const data = await res.json();
       setSignals(data.signals || []);
       setLastScan(data.last_scan || "");
@@ -175,7 +178,7 @@ export default function App() {
   const triggerScan = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/scan?timeframe=${timeframe}`, { method: "POST" });
+      const res = await fetch(`${API_BASE}/api/scan?timeframe=${timeframe}`, { method: "POST" });
       const data = await res.json();
       setSignals(data.signals || []);
       setLastScan(data.last_scan || "");
@@ -192,7 +195,7 @@ export default function App() {
 
   useEffect(() => {
     const connect = () => {
-      const ws = new WebSocket(`ws://${window.location.host}/ws`);
+      const ws = new WebSocket(WS_BASE ? `${WS_BASE}/ws` : `ws://${window.location.host}/ws`);
       wsRef.current = ws;
       ws.onopen = () => setWsStatus("connected");
       ws.onclose = () => {
