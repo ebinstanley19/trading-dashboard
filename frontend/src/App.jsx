@@ -104,7 +104,13 @@ const SYMBOL_LIST = [
   { symbol: "UKOIL",  assetType: "forex", label: "Brent Oil" },
 ];
 
-const TF_TV = { "15m": "15", "30m": "30", "1h": "60" };
+const TF_TV = { "15m": "15", "30m": "30", "1h": "60", "4h": "240", "1D": "D", "1W": "W" };
+const CHART_TF_OPTIONS = [
+  { label: "Signal", key: null },  // null = use signal's own timeframe
+  { label: "4H",     key: "4h" },
+  { label: "1D",     key: "1D" },
+  { label: "1W",     key: "1W" },
+];
 
 const TV_SYMBOL_MAP = {
   XAUUSD: "TVC:GOLD", XAGUSD: "TVC:SILVER",
@@ -122,12 +128,11 @@ function toTVSymbol(symbol, assetType) {
   return symbol;
 }
 
-function TradingViewChart({ symbol, assetType, timeframe }) {
+function TradingViewChart({ symbol, assetType, interval }) {
   const tvSymbol = toTVSymbol(symbol, assetType);
-  const interval = TF_TV[timeframe] || "15";
   const src = `https://www.tradingview.com/widgetembed/?symbol=${encodeURIComponent(tvSymbol)}&interval=${interval}&theme=dark&style=1&locale=en&hide_side_toolbar=1&allow_symbol_change=0&save_image=0&calendar=0&hide_volume=0`;
   return (
-    <div className="w-full h-64 rounded-lg overflow-hidden border border-dark-600 mb-4">
+    <div className="w-full h-64 rounded-lg overflow-hidden border border-dark-600">
       <iframe src={src} width="100%" height="100%" frameBorder="0" allowTransparency="true" scrolling="no" />
     </div>
   );
@@ -287,6 +292,7 @@ function SignalDetail({ signal, onClose, watchlist, onToggleWatchlist }) {
   const [backtestData, setBacktestData] = useState(null);
   const [backtestLoading, setBacktestLoading] = useState(false);
   const [backtestLoaded, setBacktestLoaded] = useState(false);
+  const [chartTf, setChartTf] = useState("1D");
 
   useEffect(() => {
     setOptionsData(null);
@@ -294,6 +300,7 @@ function SignalDetail({ signal, onClose, watchlist, onToggleWatchlist }) {
     setBacktestData(null);
     setBacktestLoading(false);
     setBacktestLoaded(false);
+    setChartTf("1D");
     if (signal.asset_type !== "stock" || signal.direction === "WAIT") return;
     setOptionsLoading(true);
     fetch(`${API_BASE}/api/options/${signal.symbol}?direction=${signal.direction}&price=${signal.entry}`)
@@ -313,7 +320,28 @@ function SignalDetail({ signal, onClose, watchlist, onToggleWatchlist }) {
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto" onClick={onClose}>
       <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 max-w-3xl w-full mx-auto my-auto" onClick={e => e.stopPropagation()}>
-        <TradingViewChart symbol={signal.symbol} assetType={signal.asset_type} timeframe={signal.timeframe} />
+        <TradingViewChart
+          symbol={signal.symbol}
+          assetType={signal.asset_type}
+          interval={TF_TV[chartTf] ?? TF_TV[signal.timeframe] ?? "15"}
+        />
+        <div className="flex items-center justify-between mt-2 mb-4">
+          <div className="flex gap-1 bg-dark-700 rounded-lg p-0.5">
+            {CHART_TF_OPTIONS.map(opt => {
+              const key = opt.key ?? signal.timeframe;
+              const label = opt.key === null ? `Signal (${signal.timeframe})` : opt.label;
+              return (
+                <button
+                  key={label}
+                  onClick={() => setChartTf(key)}
+                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${chartTf === key ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"}`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-xl font-bold text-white">{signal.symbol}</h2>
