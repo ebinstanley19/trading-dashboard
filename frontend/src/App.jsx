@@ -985,13 +985,13 @@ export default function App() {
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
       {showSearch && <SearchModal onResult={(sig) => { setSelectedSignal(sig); }} onClose={() => setShowSearch(false)} />}
       {/* Header */}
-      <header className="bg-dark-800 border-b border-dark-600 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 flex-wrap">
+      <header className="bg-dark-800 border-b border-dark-600 px-4 sm:px-6 py-3">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold text-white">📈 Trading Signal Scanner</h1>
-            <p className="text-xs text-gray-500 mt-0.5">US Stocks · Crypto · Forex/CFDs</p>
+            <h1 className="text-base sm:text-xl font-bold text-white">📈 Trading Signals</h1>
+            <p className="text-xs text-gray-500 hidden sm:block mt-0.5">US Stocks · Crypto · Forex/CFDs</p>
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setShowSearch(true)}
               className="flex items-center gap-2 px-3 py-2 bg-dark-700 border border-dark-600 hover:border-dark-400 rounded-xl text-sm text-gray-400 hover:text-white transition-colors group"
@@ -999,16 +999,16 @@ export default function App() {
               <Search size={14} className="group-hover:text-blue-400 transition-colors" />
               <span className="hidden sm:inline">Search...</span>
             </button>
-            <div className={`flex items-center gap-1.5 text-xs ${wsStatus === "connected" ? "text-buy" : "text-gray-500"}`}>
-              {wsStatus === "connected" ? <Wifi size={14} /> : <WifiOff size={14} />}
-              {wsStatus === "connected" ? "Live" : "Reconnecting..."}
+            <div className={`flex items-center gap-1 text-xs ${wsStatus === "connected" ? "text-buy" : "text-gray-500"}`}>
+              {wsStatus === "connected" ? <Wifi size={13} /> : <WifiOff size={13} />}
+              <span className="hidden sm:inline">{wsStatus === "connected" ? "Live" : "Reconnecting..."}</span>
             </div>
             {lastScan && (
-              <div className="text-xs text-gray-500 text-right">
+              <div className="text-xs text-gray-500 text-right hidden sm:block">
                 <div>Last scan: {new Date(lastScan).toLocaleTimeString()}</div>
                 {countdown !== null && (
                   <div className={countdown === "0:00" ? "text-blue-400 animate-pulse" : "text-gray-500"}>
-                    Next scan in {countdown === "0:00" ? "scanning..." : countdown}
+                    Next in {countdown === "0:00" ? "scanning..." : countdown}
                   </div>
                 )}
               </div>
@@ -1017,7 +1017,7 @@ export default function App() {
               href="https://paypal.me/ebinstanley19"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-yellow-500/40 text-yellow-400 hover:bg-yellow-500/10 transition-colors"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-yellow-500/40 text-yellow-400 hover:bg-yellow-500/10 transition-colors"
               title="Support this project"
             >☕ Donate</a>
             <button
@@ -1028,17 +1028,17 @@ export default function App() {
             <button
               onClick={triggerScan}
               disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+              className="flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
             >
               <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-              {loading ? "Scanning..." : "Scan Now"}
+              <span className="hidden sm:inline">{loading ? "Scanning..." : "Scan Now"}</span>
             </button>
           </div>
         </div>
       </header>
 
-      {/* Tab bar */}
-      <div className="bg-dark-800 border-b border-dark-600 px-6">
+      {/* Tab bar — desktop only; mobile uses bottom nav */}
+      <div className="hidden sm:block bg-dark-800 border-b border-dark-600 px-6">
         <div className="max-w-7xl mx-auto flex gap-0">
           {[
             { id: "scanner", label: "Live Scanner" },
@@ -1133,6 +1133,49 @@ export default function App() {
         watchlist={watchlist}
         onToggleWatchlist={toggleWatchlist}
       />
+
+      {/* Bottom nav — mobile only */}
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-dark-800 border-t border-dark-600 flex z-40">
+        {[
+          { id: "scanner",   label: "Scanner",   icon: "📊" },
+          { id: "watchlist", label: `Watchlist${watchlist.length > 0 ? ` (${watchlist.length})` : ""}`, icon: "⭐" },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex-1 flex flex-col items-center gap-0.5 py-3 text-xs font-medium transition-colors ${activeTab === tab.id ? "text-blue-400" : "text-gray-500"}`}
+          >
+            <span className="text-lg leading-none">{tab.icon}</span>
+            {tab.label}
+          </button>
+        ))}
+        <button
+          onClick={() => setShowSearch(true)}
+          className="flex-1 flex flex-col items-center gap-0.5 py-3 text-xs font-medium text-gray-500"
+        >
+          <Search size={18} />
+          Search
+        </button>
+        <a
+          href="https://paypal.me/ebinstanley19"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-1 flex flex-col items-center gap-0.5 py-3 text-xs font-medium text-yellow-500"
+        >
+          <span className="text-lg leading-none">☕</span>
+          Donate
+        </a>
+        <button
+          onClick={() => setShowHelp(true)}
+          className="flex-1 flex flex-col items-center gap-0.5 py-3 text-xs font-medium text-gray-500"
+        >
+          <span className="text-lg leading-none">?</span>
+          Help
+        </button>
+      </nav>
+
+      {/* Spacer so content isn't hidden behind bottom nav on mobile */}
+      <div className="h-20 sm:hidden" />
     </div>
   );
 }
