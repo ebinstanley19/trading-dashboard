@@ -218,16 +218,16 @@ function SignalRow({ signal, onClick, selected }) {
       </td>
       <td className="px-4 py-3"><DirectionBadge direction={signal.direction} /></td>
       <td className="px-4 py-3"><ScoreBadge score={signal.score} /></td>
-      <td className="hidden sm:table-cell px-4 py-3 text-sm font-mono">{signal.entry}</td>
-      <td className="hidden sm:table-cell px-4 py-3 text-sm font-mono text-sell">{signal.stop_loss}</td>
-      <td className="hidden sm:table-cell px-4 py-3 text-sm font-mono text-buy">{signal.take_profit}</td>
-      <td className="hidden sm:table-cell px-4 py-3 text-sm">
+      <td className="px-4 py-3 text-sm font-mono whitespace-nowrap">{signal.entry}</td>
+      <td className="px-4 py-3 text-sm font-mono text-sell whitespace-nowrap">{signal.stop_loss}</td>
+      <td className="px-4 py-3 text-sm font-mono text-buy whitespace-nowrap">{signal.take_profit}</td>
+      <td className="px-4 py-3 text-sm whitespace-nowrap">
         <span className={signal.rsi < 35 ? "text-buy" : signal.rsi > 65 ? "text-sell" : "text-gray-300"}>
           {signal.rsi}
         </span>
       </td>
-      <td className="hidden sm:table-cell px-4 py-3 text-sm">{rr < 0 ? "-" : `${rr.toFixed(1)}:1`}</td>
-      <td className="hidden sm:table-cell px-4 py-3 text-xs text-gray-500">{signal.timeframe}</td>
+      <td className="px-4 py-3 text-sm whitespace-nowrap">{rr < 0 ? "-" : `${rr.toFixed(1)}:1`}</td>
+      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{signal.timeframe}</td>
     </tr>
   );
 }
@@ -243,8 +243,8 @@ function SignalTable({ signals, loading, emptyMsg, onRowClick, selectedSignal, s
     return 0;
   });
   return (
-    <div className="bg-dark-800 border border-dark-600 rounded-xl overflow-hidden">
-      <div className="overflow-x-auto">
+    <div className="bg-dark-800 border border-dark-600 rounded-xl">
+      <div className="overflow-x-auto rounded-xl">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-dark-600 bg-dark-700">
@@ -252,7 +252,7 @@ function SignalTable({ signals, loading, emptyMsg, onRowClick, selectedSignal, s
                 <th
                   key={col.key}
                   onClick={() => onSort(col.key)}
-                  className={`px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-white transition-colors ${col.mobile ? "" : "hidden sm:table-cell"}`}
+                  className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-white transition-colors whitespace-nowrap"
                 >
                   {col.label}
                   <SortIcon col={col.key} sortCol={sortCol} sortDir={sortDir} />
