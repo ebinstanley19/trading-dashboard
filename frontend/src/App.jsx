@@ -284,7 +284,7 @@ function SignalTable({ signals, loading, emptyMsg, onRowClick, selectedSignal, s
   );
 }
 
-function SignalDetail({ signal, onClose, watchlist, onToggleWatchlist }) {
+function SignalDetail({ signal, onClose, watchlist, onToggleWatchlist, onPaperTrade }) {
   if (!signal) return null;
   const inWatchlist = watchlist.some(w => w.symbol === signal.symbol && w.assetType === signal.asset_type);
   const [optionsData, setOptionsData] = useState(null);
@@ -293,6 +293,8 @@ function SignalDetail({ signal, onClose, watchlist, onToggleWatchlist }) {
   const [backtestLoading, setBacktestLoading] = useState(false);
   const [backtestLoaded, setBacktestLoaded] = useState(false);
   const [chartTf, setChartTf] = useState("1D");
+  const [pmData, setPmData] = useState(null);
+  const [pmLoading, setPmLoading] = useState(false);
 
   useEffect(() => {
     setOptionsData(null);
@@ -301,6 +303,7 @@ function SignalDetail({ signal, onClose, watchlist, onToggleWatchlist }) {
     setBacktestLoading(false);
     setBacktestLoaded(false);
     setChartTf("1D");
+    setPmData(null);
     if (signal.asset_type !== "stock" || signal.direction === "WAIT") return;
     setOptionsLoading(true);
     fetch(`${API_BASE}/api/options/${signal.symbol}?direction=${signal.direction}&price=${signal.entry}`)
@@ -308,6 +311,15 @@ function SignalDetail({ signal, onClose, watchlist, onToggleWatchlist }) {
       .then(d => { setOptionsData(d.option); setOptionsLoading(false); })
       .catch(() => setOptionsLoading(false));
   }, [signal.symbol, signal.direction, signal.entry]);
+
+  useEffect(() => {
+    if (signal.asset_type !== "stock") return;
+    setPmLoading(true);
+    fetch(`${API_BASE}/api/premarket/${signal.symbol}`)
+      .then(r => r.json())
+      .then(d => { setPmData(d); setPmLoading(false); })
+      .catch(() => setPmLoading(false));
+  }, [signal.symbol, signal.asset_type]);
 
   const loadBacktest = () => {
     if (backtestLoaded || backtestLoading) return;
@@ -357,6 +369,14 @@ function SignalDetail({ signal, onClose, watchlist, onToggleWatchlist }) {
               {backtestLoading ? <RefreshCw size={12} className="animate-spin" /> : "📊 Backtest"}
             </button>
             <button
+              onClick={() => onPaperTrade(signal)}
+              disabled={signal.direction === "WAIT"}
+              title={signal.direction === "WAIT" ? "No signal to trade" : "Open a paper trade from this signal"}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors bg-dark-600 text-gray-400 hover:text-white border border-dark-500 disabled:opacity-40"
+            >
+              📝 Paper Trade
+            </button>
+            <button
               onClick={() => onToggleWatchlist(signal)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${inWatchlist ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 hover:bg-yellow-500/30" : "bg-dark-600 text-gray-400 hover:text-white border border-dark-500"}`}
             >
@@ -401,6 +421,44 @@ function SignalDetail({ signal, onClose, watchlist, onToggleWatchlist }) {
             ))}
           </ul>
         </div>
+        {signal.asset_type === "stock" && (
+          <div className="bg-dark-700 rounded-lg p-3 mt-3">
+            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2.5">
+              🌅 Extended Hours <span className="text-gray-600 font-normal normal-case">(US stocks)</span>
+            </div>
+            {pmLoading && <div className="text-xs text-gray-500 py-1">Loading extended hours data...</div>}
+            {!pmLoading && pmData && (() => {
+              const activePrice = pmData.pre_market_price ?? pmData.post_market_price;
+              const activePct = pmData.pre_market_price ? pmData.pre_market_change_pct : pmData.post_market_change_pct;
+              const session = pmData.pre_market_price ? "Pre-Market" : pmData.post_market_price ? "After-Hours" : null;
+              const sessionColor = pmData.pre_market_price ? "bg-blue-500/20 text-blue-300 border-blue-500/30" : "bg-purple-500/20 text-purple-300 border-purple-500/30";
+              const isUp = activePct >= 0;
+              const withSignal = (signal.direction === "BUY" && isUp) || (signal.direction === "SELL" && !isUp);
+
+              if (!session) return <div className="text-xs text-gray-500 py-1">No extended hours activity right now.</div>;
+
+              return (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`px-2 py-0.5 rounded text-xs font-semibold border ${sessionColor}`}>{session}</span>
+                    <span className="text-white font-mono font-semibold">${activePrice.toFixed(2)}</span>
+                    <span className={`text-sm font-semibold ${isUp ? "text-buy" : "text-sell"}`}>
+                      {isUp ? "▲" : "▼"} {activePct > 0 ? "+" : ""}{activePct}%
+                    </span>
+                    {signal.direction !== "WAIT" && (
+                      <span className={`text-xs font-medium ${withSignal ? "text-green-400" : "text-red-400"}`}>
+                        {withSignal ? "✓ With signal" : "✗ Against signal"}
+                      </span>
+                    )}
+                  </div>
+                  {pmData.previous_close && (
+                    <div className="text-xs text-gray-500">Prev Close: ${pmData.previous_close.toFixed(2)}</div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        )}
         {backtestLoaded && backtestData && (
           <div className="bg-dark-700 rounded-lg p-3 mt-3">
             <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2.5">
@@ -658,6 +716,56 @@ function detectAssetType(sym) {
   return "stock";
 }
 
+function generateTradeId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function calcPnl(trade, currentPrice) {
+  return trade.direction === "BUY"
+    ? (currentPrice - trade.entry_price) * trade.shares
+    : (trade.entry_price - currentPrice) * trade.shares;
+}
+
+function buildOpenTrade(signal, shares, dollarAmount, portfolio) {
+  return {
+    newTrade: {
+      id: generateTradeId(),
+      symbol: signal.symbol, asset_type: signal.asset_type, direction: signal.direction,
+      entry_price: signal.entry, shares, dollar_amount: dollarAmount,
+      stop_loss: signal.stop_loss, take_profit: signal.take_profit,
+      opened_at: new Date().toISOString(),
+      closed_at: null, close_price: null, close_reason: null, pnl: null,
+      signal_score: signal.score, timeframe: signal.timeframe,
+    },
+    newPortfolio: { ...portfolio, balance: portfolio.balance - dollarAmount },
+  };
+}
+
+function applyCloseTrade(tradeId, closePrice, reason, trades, portfolio) {
+  let returnedCash = 0, pnlDelta = 0;
+  const updatedTrades = trades.map(t => {
+    if (t.id !== tradeId) return t;
+    const pnl = calcPnl(t, closePrice);
+    returnedCash = t.dollar_amount; pnlDelta = pnl;
+    return { ...t, closed_at: new Date().toISOString(), close_price: closePrice, close_reason: reason, pnl };
+  });
+  return {
+    updatedTrades,
+    newPortfolio: { ...portfolio, balance: portfolio.balance + returnedCash + pnlDelta },
+  };
+}
+
+function fmtUSD(n, showSign = false) {
+  if (n === null || n === undefined) return "—";
+  const sign = showSign ? (n >= 0 ? "+" : "-") : "";
+  return `${sign}$${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function fmtPct(n) {
+  if (n === null || n === undefined) return "—";
+  return `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
+}
+
 function SearchModal({ onResult, onClose }) {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -759,6 +867,266 @@ function SearchModal({ onResult, onClose }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function PaperTradeModal({ signal, portfolio, trades, onConfirm, onCancel }) {
+  const initDollar = Math.min(1000, portfolio.balance);
+  const [dollarAmount, setDollarAmount] = useState(String(initDollar));
+  const [shares, setShares] = useState(signal.entry > 0 ? (initDollar / signal.entry).toFixed(4) : "0");
+
+  const hasDuplicate = trades.some(t => t.symbol === signal.symbol && !t.closed_at);
+
+  const handleDollarChange = (val) => {
+    setDollarAmount(val);
+    const d = parseFloat(val) || 0;
+    setShares(signal.entry > 0 ? (d / signal.entry).toFixed(4) : "0");
+  };
+
+  const handleSharesChange = (val) => {
+    setShares(val);
+    const s = parseFloat(val) || 0;
+    setDollarAmount((s * signal.entry).toFixed(2));
+  };
+
+  const dollarNum = parseFloat(dollarAmount) || 0;
+  const sharesNum = parseFloat(shares) || 0;
+  const isBuy = signal.direction === "BUY";
+
+  const error = hasDuplicate
+    ? `Already have an open position in ${signal.symbol}`
+    : dollarNum <= 0
+    ? "Enter a valid amount"
+    : dollarNum > portfolio.balance
+    ? "Insufficient balance"
+    : null;
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4" onClick={onCancel}>
+      <div className="bg-dark-800 border border-dark-600 rounded-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-bold text-white">📝 Paper Trade</h2>
+            <DirectionBadge direction={signal.direction} />
+          </div>
+          <button onClick={onCancel} className="text-gray-400 hover:text-white"><X size={18} /></button>
+        </div>
+
+        <div className="text-white font-semibold text-base mb-4">{signal.symbol} <span className="text-gray-500 text-sm font-normal capitalize">{signal.asset_type}</span></div>
+
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          {[
+            { label: "Entry", value: signal.entry, color: "text-white" },
+            { label: "Stop Loss", value: signal.stop_loss, color: "text-sell" },
+            { label: "Take Profit", value: signal.take_profit, color: "text-buy" },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="bg-dark-700 rounded-lg p-2 text-center">
+              <div className="text-xs text-gray-500 mb-1">{label}</div>
+              <div className={`font-mono text-sm font-semibold ${color}`}>{value}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="space-y-3 mb-4">
+          <div>
+            <label className="text-xs text-gray-400 mb-1 block">Dollar Amount ($)</label>
+            <input
+              type="number" min="0" step="any"
+              value={dollarAmount}
+              onChange={e => handleDollarChange(e.target.value)}
+              className="w-full bg-dark-700 border border-dark-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-400 mb-1 block">Shares / Units</label>
+            <input
+              type="number" min="0" step="any"
+              value={shares}
+              onChange={e => handleSharesChange(e.target.value)}
+              className="w-full bg-dark-700 border border-dark-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+            />
+          </div>
+        </div>
+
+        <div className="text-xs text-gray-500 mb-4">
+          Available balance: <span className="text-white font-medium">{fmtUSD(portfolio.balance)}</span>
+        </div>
+
+        {error && <div className="text-xs text-red-400 mb-3">{error}</div>}
+
+        <div className="flex gap-2">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2.5 bg-dark-700 hover:bg-dark-600 rounded-lg text-sm font-medium transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => !error && onConfirm(sharesNum, dollarNum)}
+            disabled={!!error}
+            className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-40 ${isBuy ? "bg-green-600 hover:bg-green-500 text-white" : "bg-red-600 hover:bg-red-500 text-white"}`}
+          >
+            Confirm {signal.direction}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PaperTradePage({ trades, portfolio, onClose, onReset }) {
+  const [livePrices, setLivePrices] = useState({});
+
+  const openTrades = trades.filter(t => !t.closed_at);
+  const closedTrades = trades.filter(t => t.closed_at).sort((a, b) => new Date(b.closed_at) - new Date(a.closed_at));
+
+  const fetchLivePrices = useCallback(async () => {
+    if (!openTrades.length) return;
+    const results = await Promise.allSettled(
+      openTrades.map(async t => {
+        const r = await fetch(`${API_BASE}/api/price/${t.asset_type}/${t.symbol}`);
+        const { price } = await r.json();
+        return { symbol: t.symbol, price };
+      })
+    );
+    const map = {};
+    results.forEach(r => { if (r.status === "fulfilled") map[r.value.symbol] = r.value.price; });
+    setLivePrices(map);
+  }, [openTrades.length]);
+
+  useEffect(() => {
+    fetchLivePrices();
+    const id = setInterval(fetchLivePrices, 60_000);
+    return () => clearInterval(id);
+  }, [fetchLivePrices]);
+
+  const openPositionValues = openTrades.reduce((sum, t) => {
+    const livePrice = livePrices[t.symbol];
+    const pnl = livePrice ? calcPnl(t, livePrice) : 0;
+    return sum + t.dollar_amount + pnl;
+  }, 0);
+
+  const currentValue = portfolio.balance + openPositionValues;
+  const totalPnl = currentValue - portfolio.starting_balance;
+  const totalPnlPct = (totalPnl / portfolio.starting_balance) * 100;
+
+  const wins = closedTrades.filter(t => t.pnl > 0).length;
+  const winRate = closedTrades.length > 0 ? (wins / closedTrades.length) * 100 : null;
+
+  const reasonBadge = (reason) => {
+    if (reason === "take_profit") return <span className="px-2 py-0.5 rounded text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30">TP Hit</span>;
+    if (reason === "stop_loss") return <span className="px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30">SL Hit</span>;
+    return <span className="px-2 py-0.5 rounded text-xs font-semibold bg-gray-500/20 text-gray-400 border border-gray-500/30">Manual</span>;
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-bold text-white">Paper Trading</h2>
+        <button
+          onClick={() => { if (window.confirm("Reset portfolio to $100,000? All trades will be cleared.")) onReset(); }}
+          className="text-xs text-gray-500 hover:text-red-400 transition-colors px-2 py-1 rounded border border-dark-600 hover:border-red-500/30"
+        >
+          Reset Portfolio
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        {[
+          { label: "Current Value", value: fmtUSD(currentValue), color: "text-white" },
+          { label: "Total P&L", value: `${fmtUSD(totalPnl, true)} (${fmtPct(totalPnlPct)})`, color: totalPnl >= 0 ? "text-buy" : "text-sell" },
+          { label: "Win Rate", value: winRate !== null ? `${winRate.toFixed(0)}%` : "—", color: winRate !== null ? (winRate >= 50 ? "text-buy" : "text-sell") : "text-gray-400" },
+          { label: "Trades", value: `${openTrades.length} open / ${closedTrades.length} closed`, color: "text-gray-300" },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="bg-dark-800 border border-dark-600 rounded-xl p-4">
+            <div className="text-xs text-gray-500 mb-1">{label}</div>
+            <div className={`text-sm sm:text-base font-bold ${color}`}>{value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mb-6">
+        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Open Positions</h3>
+        {openTrades.length === 0 ? (
+          <div className="bg-dark-800 border border-dark-600 rounded-xl py-10 text-center text-gray-500 text-sm">
+            No open positions. Find a signal and click 📝 Paper Trade.
+          </div>
+        ) : (
+          <div className="bg-dark-800 border border-dark-600 rounded-xl overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-dark-600 bg-dark-700">
+                  {["Symbol", "Dir", "Entry", "Live", "P&L $", "P&L %", "SL", "TP", ""].map(h => (
+                    <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {openTrades.map(t => {
+                  const livePrice = livePrices[t.symbol];
+                  const pnl = livePrice ? calcPnl(t, livePrice) : null;
+                  const pnlPct = pnl !== null ? (pnl / t.dollar_amount) * 100 : null;
+                  return (
+                    <tr key={t.id} className="border-b border-dark-700 hover:bg-dark-700/50">
+                      <td className="px-3 py-2.5 font-semibold text-white whitespace-nowrap">{t.symbol}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap"><DirectionBadge direction={t.direction} /></td>
+                      <td className="px-3 py-2.5 font-mono text-sm whitespace-nowrap">{t.entry_price}</td>
+                      <td className="px-3 py-2.5 font-mono text-sm whitespace-nowrap">{livePrice ? livePrice.toFixed(4) : "—"}</td>
+                      <td className={`px-3 py-2.5 font-mono text-sm whitespace-nowrap font-semibold ${pnl === null ? "text-gray-500" : pnl >= 0 ? "text-buy" : "text-sell"}`}>{fmtUSD(pnl, true)}</td>
+                      <td className={`px-3 py-2.5 text-sm whitespace-nowrap font-semibold ${pnlPct === null ? "text-gray-500" : pnlPct >= 0 ? "text-buy" : "text-sell"}`}>{fmtPct(pnlPct)}</td>
+                      <td className="px-3 py-2.5 font-mono text-sm text-sell whitespace-nowrap">{t.stop_loss}</td>
+                      <td className="px-3 py-2.5 font-mono text-sm text-buy whitespace-nowrap">{t.take_profit}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <button
+                          onClick={() => onClose(t.id)}
+                          className="px-2.5 py-1 rounded text-xs bg-dark-600 hover:bg-red-500/20 text-gray-400 hover:text-red-400 border border-dark-500 hover:border-red-500/30 transition-colors"
+                        >
+                          Close
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {closedTrades.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Trade History</h3>
+          <div className="bg-dark-800 border border-dark-600 rounded-xl overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-dark-600 bg-dark-700">
+                  {["Symbol", "Dir", "Entry", "Close", "P&L $", "P&L %", "Reason", "Date"].map(h => (
+                    <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {closedTrades.map(t => {
+                  const pnlPct = t.pnl !== null && t.dollar_amount > 0 ? (t.pnl / t.dollar_amount) * 100 : null;
+                  return (
+                    <tr key={t.id} className="border-b border-dark-700 hover:bg-dark-700/50">
+                      <td className="px-3 py-2.5 font-semibold text-white whitespace-nowrap">{t.symbol}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap"><DirectionBadge direction={t.direction} /></td>
+                      <td className="px-3 py-2.5 font-mono text-sm whitespace-nowrap">{t.entry_price}</td>
+                      <td className="px-3 py-2.5 font-mono text-sm whitespace-nowrap">{t.close_price}</td>
+                      <td className={`px-3 py-2.5 font-mono text-sm whitespace-nowrap font-semibold ${t.pnl === null ? "text-gray-500" : t.pnl >= 0 ? "text-buy" : "text-sell"}`}>{fmtUSD(t.pnl, true)}</td>
+                      <td className={`px-3 py-2.5 text-sm whitespace-nowrap font-semibold ${pnlPct === null ? "text-gray-500" : pnlPct >= 0 ? "text-buy" : "text-sell"}`}>{fmtPct(pnlPct)}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">{reasonBadge(t.close_reason)}</td>
+                      <td className="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap">{new Date(t.closed_at).toLocaleDateString()}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -888,13 +1256,29 @@ export default function App() {
   const [watchlist, setWatchlist] = useState(() =>
     JSON.parse(localStorage.getItem("trading_watchlist") || "[]")
   );
+  const [portfolio, setPortfolio] = useState(() =>
+    JSON.parse(localStorage.getItem("paper_portfolio") || "null")
+    ?? { balance: 100000, starting_balance: 100000 }
+  );
+  const [trades, setTrades] = useState(() =>
+    JSON.parse(localStorage.getItem("paper_trades") || "[]")
+  );
+  const [paperTradeSignal, setPaperTradeSignal] = useState(null);
+
   const wsRef = useRef(null);
   const timeframeRef = useRef(timeframe);
+  const tradesRef = useRef(trades);
+  const portfolioRef = useRef(portfolio);
   const countdown = useCountdown(lastScan);
 
   useEffect(() => {
     localStorage.setItem("trading_watchlist", JSON.stringify(watchlist));
   }, [watchlist]);
+
+  useEffect(() => { localStorage.setItem("paper_portfolio", JSON.stringify(portfolio)); }, [portfolio]);
+  useEffect(() => { localStorage.setItem("paper_trades", JSON.stringify(trades)); }, [trades]);
+  useEffect(() => { tradesRef.current = trades; }, [trades]);
+  useEffect(() => { portfolioRef.current = portfolio; }, [portfolio]);
 
   useEffect(() => {
     timeframeRef.current = timeframe;
@@ -953,6 +1337,60 @@ export default function App() {
     connect();
     return () => wsRef.current?.close();
   }, []);
+
+  useEffect(() => {
+    const id = setInterval(async () => {
+      const open = tradesRef.current.filter(t => !t.closed_at);
+      if (!open.length) return;
+      const closures = (await Promise.allSettled(
+        open.map(async t => {
+          const r = await fetch(`${API_BASE}/api/price/${t.asset_type}/${t.symbol}`);
+          const { price } = await r.json();
+          const hit = t.direction === "BUY"
+            ? (price <= t.stop_loss ? "stop_loss" : price >= t.take_profit ? "take_profit" : null)
+            : (price >= t.stop_loss ? "stop_loss" : price <= t.take_profit ? "take_profit" : null);
+          return hit ? { id: t.id, price, reason: hit } : null;
+        })
+      )).filter(r => r.status === "fulfilled" && r.value).map(r => r.value);
+      if (!closures.length) return;
+      let updatedTrades = tradesRef.current;
+      let updatedPortfolio = portfolioRef.current;
+      closures.forEach(({ id, price, reason }) => {
+        const result = applyCloseTrade(id, price, reason, updatedTrades, updatedPortfolio);
+        updatedTrades = result.updatedTrades;
+        updatedPortfolio = result.newPortfolio;
+      });
+      setTrades(updatedTrades);
+      setPortfolio(updatedPortfolio);
+    }, 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const handleOpenTrade = (shares, dollarAmount) => {
+    const { newTrade, newPortfolio } = buildOpenTrade(paperTradeSignal, shares, dollarAmount, portfolio);
+    setTrades(prev => [...prev, newTrade]);
+    setPortfolio(newPortfolio);
+    setPaperTradeSignal(null);
+    setActiveTab("paper");
+  };
+
+  const handleManualClose = async (tradeId) => {
+    const trade = trades.find(t => t.id === tradeId);
+    if (!trade) return;
+    let price = trade.entry_price;
+    try {
+      const r = await fetch(`${API_BASE}/api/price/${trade.asset_type}/${trade.symbol}`);
+      price = (await r.json()).price;
+    } catch {}
+    const { updatedTrades, newPortfolio } = applyCloseTrade(tradeId, price, "manual", trades, portfolio);
+    setTrades(updatedTrades);
+    setPortfolio(newPortfolio);
+  };
+
+  const handleResetPortfolio = () => {
+    setPortfolio({ balance: 100000, starting_balance: 100000 });
+    setTrades([]);
+  };
 
   const handleSort = (col) => {
     setSortCol(prev => {
@@ -1043,6 +1481,7 @@ export default function App() {
           {[
             { id: "scanner", label: "Live Scanner" },
             { id: "watchlist", label: `Watchlist${watchlist.length > 0 ? ` (${watchlist.length})` : ""}` },
+            { id: "paper", label: `Paper Trading${trades.filter(t => !t.closed_at).length > 0 ? ` (${trades.filter(t => !t.closed_at).length})` : ""}` },
           ].map(tab => (
             <button
               key={tab.id}
@@ -1055,7 +1494,14 @@ export default function App() {
         </div>
       </div>
 
-      {activeTab === "scanner" ? (
+      {activeTab === "paper" ? (
+        <PaperTradePage
+          trades={trades}
+          portfolio={portfolio}
+          onClose={handleManualClose}
+          onReset={handleResetPortfolio}
+        />
+      ) : activeTab === "scanner" ? (
         <main className="max-w-7xl mx-auto px-6 py-6">
           {/* Stats bar */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
@@ -1132,13 +1578,25 @@ export default function App() {
         onClose={() => setSelectedSignal(null)}
         watchlist={watchlist}
         onToggleWatchlist={toggleWatchlist}
+        onPaperTrade={(sig) => { setSelectedSignal(null); setPaperTradeSignal(sig); }}
       />
+
+      {paperTradeSignal && (
+        <PaperTradeModal
+          signal={paperTradeSignal}
+          portfolio={portfolio}
+          trades={trades}
+          onConfirm={handleOpenTrade}
+          onCancel={() => setPaperTradeSignal(null)}
+        />
+      )}
 
       {/* Bottom nav — mobile only */}
       <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-dark-800 border-t border-dark-600 flex z-40">
         {[
           { id: "scanner",   label: "Scanner",   icon: "📊" },
           { id: "watchlist", label: `Watchlist${watchlist.length > 0 ? ` (${watchlist.length})` : ""}`, icon: "⭐" },
+          { id: "paper",     label: "Paper",     icon: "📝" },
         ].map(tab => (
           <button
             key={tab.id}

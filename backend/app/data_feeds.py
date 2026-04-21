@@ -192,6 +192,34 @@ async def fetch_forex_price(symbol: str) -> float | None:
         return None
 
 
+async def fetch_premarket_data(symbol: str) -> dict:
+    try:
+        loop = asyncio.get_event_loop()
+        ticker = await loop.run_in_executor(None, lambda: yf.Ticker(symbol))
+        fi = await loop.run_in_executor(None, lambda: ticker.fast_info)
+        prev_close = getattr(fi, "previous_close", None) or getattr(fi, "regular_market_previous_close", None)
+        pre_price = getattr(fi, "pre_market_price", None)
+        post_price = getattr(fi, "post_market_price", None)
+
+        def pct(price):
+            if price and prev_close:
+                return round((price - prev_close) / prev_close * 100, 2)
+            return None
+
+        return {
+            "pre_market_price": pre_price,
+            "pre_market_change_pct": pct(pre_price),
+            "post_market_price": post_price,
+            "post_market_change_pct": pct(post_price),
+            "previous_close": prev_close,
+        }
+    except Exception:
+        return {
+            "pre_market_price": None, "pre_market_change_pct": None,
+            "post_market_price": None, "post_market_change_pct": None, "previous_close": None,
+        }
+
+
 async def fetch_options_suggestion(symbol: str, direction: str, current_price: float) -> dict | None:
     """Suggest a call (BUY) or put (SELL) option ~21 DTE for a US stock."""
     try:

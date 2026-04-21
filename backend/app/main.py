@@ -12,7 +12,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from .scanner import run_scan, get_cached_signals, scan_watchlist_symbols, _scan_asset
-from .data_feeds import fetch_stock_price, fetch_crypto_price, fetch_forex_price, fetch_options_suggestion, backtest_symbol
+from .data_feeds import fetch_stock_price, fetch_crypto_price, fetch_forex_price, fetch_options_suggestion, backtest_symbol, fetch_premarket_data
 
 load_dotenv()
 
@@ -109,6 +109,12 @@ async def get_price(request: Request, asset_type: str, symbol: str):
     else:
         price = await fetch_forex_price(symbol)
     return {"symbol": symbol, "price": price}
+
+
+@app.get("/api/premarket/{symbol}")
+@limiter.limit("20/minute")
+async def get_premarket(request: Request, symbol: str):
+    return await fetch_premarket_data(symbol.upper())
 
 
 @app.post("/api/scan/symbol")
