@@ -873,25 +873,38 @@ function SearchModal({ onResult, onClose }) {
 
 function PaperTradeModal({ signal, portfolio, trades, onConfirm, onCancel }) {
   const initDollar = Math.min(1000, portfolio.balance);
+  const [entry, setEntry] = useState(String(signal.entry));
+  const [stopLoss, setStopLoss] = useState(String(signal.stop_loss));
+  const [takeProfit, setTakeProfit] = useState(String(signal.take_profit));
   const [dollarAmount, setDollarAmount] = useState(String(initDollar));
   const [shares, setShares] = useState(signal.entry > 0 ? (initDollar / signal.entry).toFixed(4) : "0");
 
   const hasDuplicate = trades.some(t => t.symbol === signal.symbol && !t.closed_at);
+  const entryNum = parseFloat(entry) || 0;
 
   const handleDollarChange = (val) => {
     setDollarAmount(val);
     const d = parseFloat(val) || 0;
-    setShares(signal.entry > 0 ? (d / signal.entry).toFixed(4) : "0");
+    setShares(entryNum > 0 ? (d / entryNum).toFixed(4) : "0");
   };
 
   const handleSharesChange = (val) => {
     setShares(val);
     const s = parseFloat(val) || 0;
-    setDollarAmount((s * signal.entry).toFixed(2));
+    setDollarAmount((s * entryNum).toFixed(2));
+  };
+
+  const handleEntryChange = (val) => {
+    setEntry(val);
+    const e = parseFloat(val) || 0;
+    const d = parseFloat(dollarAmount) || 0;
+    setShares(e > 0 ? (d / e).toFixed(4) : "0");
   };
 
   const dollarNum = parseFloat(dollarAmount) || 0;
   const sharesNum = parseFloat(shares) || 0;
+  const slNum = parseFloat(stopLoss) || 0;
+  const tpNum = parseFloat(takeProfit) || 0;
   const isBuy = signal.direction === "BUY";
 
   const error = hasDuplicate
@@ -900,7 +913,11 @@ function PaperTradeModal({ signal, portfolio, trades, onConfirm, onCancel }) {
     ? "Enter a valid amount"
     : dollarNum > portfolio.balance
     ? "Insufficient balance"
+    : entryNum <= 0
+    ? "Entry price must be greater than 0"
     : null;
+
+  const inputCls = "w-full bg-dark-900 border border-dark-500 rounded-lg px-3 py-2 text-sm font-mono text-white focus:outline-none focus:border-blue-500 text-center";
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4" onClick={onCancel}>
@@ -916,16 +933,18 @@ function PaperTradeModal({ signal, portfolio, trades, onConfirm, onCancel }) {
         <div className="text-white font-semibold text-base mb-4">{signal.symbol} <span className="text-gray-500 text-sm font-normal capitalize">{signal.asset_type}</span></div>
 
         <div className="grid grid-cols-3 gap-2 mb-4">
-          {[
-            { label: "Entry", value: signal.entry, color: "text-white" },
-            { label: "Stop Loss", value: signal.stop_loss, color: "text-sell" },
-            { label: "Take Profit", value: signal.take_profit, color: "text-buy" },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="bg-dark-700 rounded-lg p-2 text-center">
-              <div className="text-xs text-gray-500 mb-1">{label}</div>
-              <div className={`font-mono text-sm font-semibold ${color}`}>{value}</div>
-            </div>
-          ))}
+          <div>
+            <div className="text-xs text-gray-500 mb-1 text-center">Entry</div>
+            <input type="number" min="0" step="any" value={entry} onChange={e => handleEntryChange(e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <div className="text-xs text-red-400 mb-1 text-center">Stop Loss</div>
+            <input type="number" min="0" step="any" value={stopLoss} onChange={e => setStopLoss(e.target.value)} className={`${inputCls} text-sell`} />
+          </div>
+          <div>
+            <div className="text-xs text-green-400 mb-1 text-center">Take Profit</div>
+            <input type="number" min="0" step="any" value={takeProfit} onChange={e => setTakeProfit(e.target.value)} className={`${inputCls} text-buy`} />
+          </div>
         </div>
 
         <div className="space-y-3 mb-4">
@@ -963,7 +982,7 @@ function PaperTradeModal({ signal, portfolio, trades, onConfirm, onCancel }) {
             Cancel
           </button>
           <button
-            onClick={() => !error && onConfirm(sharesNum, dollarNum)}
+            onClick={() => !error && onConfirm(sharesNum, dollarNum, entryNum, slNum, tpNum)}
             disabled={!!error}
             className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-40 ${isBuy ? "bg-green-600 hover:bg-green-500 text-white" : "bg-red-600 hover:bg-red-500 text-white"}`}
           >
@@ -1366,8 +1385,9 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  const handleOpenTrade = (shares, dollarAmount) => {
-    const { newTrade, newPortfolio } = buildOpenTrade(paperTradeSignal, shares, dollarAmount, portfolio);
+  const handleOpenTrade = (shares, dollarAmount, customEntry, customSL, customTP) => {
+    const overriddenSignal = { ...paperTradeSignal, entry: customEntry, stop_loss: customSL, take_profit: customTP };
+    const { newTrade, newPortfolio } = buildOpenTrade(overriddenSignal, shares, dollarAmount, portfolio);
     setTrades(prev => [...prev, newTrade]);
     setPortfolio(newPortfolio);
     setPaperTradeSignal(null);
